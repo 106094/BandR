@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Borrow / Return</title>
-  <!-- ZXing for in-browser camera scanning -->
+  <!-- ZXing for in-browser camera scanning --> 
   <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
   <style>
     :root { --primary:#4f46e5; --bg:#0b0c10; --card:#ffffff; }
@@ -179,22 +179,22 @@ async function openScanner(targetId=null, directInputEl=null){
   currentScanTargetId = targetId; // 'name' or null
   document.getElementById('scannerModal').style.display='flex';
 
-  // Pick back camera
+  // Fresh reader each time
   codeReader = new ZXingBrowser.BrowserMultiFormatReader();
-  const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
-  const back = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
-  currentDeviceId = back?.deviceId;
-
   const video = document.getElementById('video');
 
-  try{
-    await codeReader.decodeFromVideoDevice(currentDeviceId, video, (result, err, controls)=>{
-      if(result){
+  // Ensure the right attributes for iOS
+  video.setAttribute('playsinline', 'true');
+  video.setAttribute('autoplay', 'true');
+  video.muted = true; // iOS often needs muted for autoplay start
+
+  try {
+    // IMPORTANT: start with default camera (null) to trigger permission
+    await codeReader.decodeFromVideoDevice(null, video, (result, err) => {
+      if (result) {
         const text = result.getText();
-        // Fill target
         if (directInputEl) {
           directInputEl.value = text;
-          // trigger input event to maybe auto-add a line
           directInputEl.dispatchEvent(new Event('input', {bubbles:true}));
         } else if (currentScanTargetId) {
           const el = document.getElementById(currentScanTargetId);
@@ -203,9 +203,24 @@ async function openScanner(targetId=null, directInputEl=null){
         closeScanner();
         toast('Scanned');
       }
+      // If there's an error per frame, you can inspect it:
+      // if (err) console.debug(err);
     });
-  }catch(e){
-    toast('Camera error: ' + e);
+
+    // After stream is live, you MAY enumerate devices to pick back camera:
+    // const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+    // const back = devices.find(d => /back|rear|environment/i.test(d.label));
+    // if (back) {
+    //   codeReader.reset();
+    //   await codeReader.decodeFromVideoDevice(back.deviceId, video, (result, err) => { ... });
+    // }
+
+  } catch (e) {
+    toast('Camera error: ' + e.name + ' — ' + e.message);
+    // Common iOS errors to watch:
+    // NotAllowedError -> permissions
+    // NotFoundError   -> no camera or blocked
+    // OverconstrainedError -> bad constraints/deviceId
   }
 }
 
