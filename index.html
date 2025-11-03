@@ -175,55 +175,57 @@ function removeRow(btn){
 }
 
 /** ====== SCANNER ====== */
-async function openScanner(targetId=null, directInputEl=null){
-  currentScanTargetId = targetId; // 'name' or null
+async function openScanner(targetId=null, directInputEl=null) {
+  currentScanTargetId = targetId;
   document.getElementById('scannerModal').style.display='flex';
 
-  // Fresh reader each time
   codeReader = new ZXingBrowser.BrowserMultiFormatReader();
   const video = document.getElementById('video');
 
-  // Ensure the right attributes for iOS
+  // --- iOS-friendly attributes ---
   video.setAttribute('playsinline', 'true');
   video.setAttribute('autoplay', 'true');
   video.muted = true; // iOS often needs muted for autoplay start
   video.onplaying = () => toast('Camera running');
   video.onloadedmetadata = () => video.play().catch(()=>{});
-  try {
-    // IMPORTANT: start with default camera (null) to trigger permission
-    await codeReader.decodeFromVideoDevice(null, video, (result, err) => {
-      if (result) {
-        const text = result.getText();
-        if (directInputEl) {
-          directInputEl.value = text;
-          directInputEl.dispatchEvent(new Event('input', {bubbles:true}));
-        } else if (currentScanTargetId) {
-          const el = document.getElementById(currentScanTargetId);
-          if (el) el.value = text;
-        }
-        closeScanner();
-        toast('Scanned');
+
+  const cb = (result, err) => {
+    if (result) {
+      const text = result.getText();
+      if (directInputEl) {
+        directInputEl.value = text;
+        directInputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      } else if (currentScanTargetId) {
+        const el = document.getElementById(currentScanTargetId);
+        if (el) el.value = text;
       }
-      // If there's an error per frame, you can inspect it:
-      // if (err) console.debug(err);
-    });
+      closeScanner();
+      toast('Scanned');
+    }
+  };
 
-    // After stream is live, you MAY enumerate devices to pick back camera:
-    // const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
-    // const back = devices.find(d => /back|rear|environment/i.test(d.label));
-    // if (back) {
-    //   codeReader.reset();
-    //   await codeReader.decodeFromVideoDevice(back.deviceId, video, (result, err) => { ... });
-    // }
+  try {
+    // 1️⃣ Start default camera first → triggers Safari permission prompt
+    await codeReader.decodeFromVideoDevice(null, video, cb);
 
+    // 2️⃣ Wait for a short moment (let stream start)
+    await new Promise(r => setTimeout(r, 1500));
+
+    // 3️⃣ Now list devices — labels become available after permission
+    const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+    const back = devices.find(d => /back|rear|environment/i.test(d.label));
+
+    // 4️⃣ Switch to back camera if found
+    if (back) {
+      codeReader.reset();
+      await codeReader.decodeFromVideoDevice(back.deviceId, video, cb);
+      toast('Switched to back camera');
+    }
   } catch (e) {
-   toast(`Camera error: ${e.name || 'Error'} — ${e.message || e}`);
-    // Common iOS errors to watch:
-    // NotAllowedError -> permissions
-    // NotFoundError   -> no camera or blocked
-    // OverconstrainedError -> bad constraints/deviceId
+    toast(`Camera error: ${e.name || 'Error'} — ${e.message || e}`);
   }
 }
+
 
 async function toggleTorch(){
   try{
