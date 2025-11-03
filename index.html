@@ -187,7 +187,8 @@ async function openScanner(targetId=null, directInputEl=null){
   video.setAttribute('playsinline', 'true');
   video.setAttribute('autoplay', 'true');
   video.muted = true; // iOS often needs muted for autoplay start
-
+  video.onplaying = () => toast('Camera running');
+  video.onloadedmetadata = () => video.play().catch(()=>{});
   try {
     // IMPORTANT: start with default camera (null) to trigger permission
     await codeReader.decodeFromVideoDevice(null, video, (result, err) => {
