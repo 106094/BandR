@@ -58,22 +58,23 @@
     #video { width:100%; background:#000; aspect-ratio:3/4; object-fit:cover }
     .modal .bar { display:flex; gap:8px; padding:10px; background:#0f172a; color:#fff; align-items:center; justify-content:space-between }
     .modal .bar .btn { border-radius:8px; padding:8px 10px; }
-    .name-row {
-    display: grid;
-    grid-template-columns: 100px 1fr auto; /* label | input | 📷 button */
-    align-items: center;
-    gap: 12px;
+    /* Ensure consistent spacing/alignment with Date & Properties */
+    .field.name-row {
+    display: flex;
+    flex-direction: column;
     position: relative;
     }
 
-    .name-row label {
-    text-align: right;          /* aligns label edge to input edge */
+    /* Label style – left aligned, same as Properties */
+    .field.name-row label {
     font-size: 13px;
     color: #374151;
-    white-space: nowrap;
+    margin-bottom: 6px;
+    text-align: left; /* aligns with Date/Property label */
     }
 
-    .name-row input {
+    /* Input box styling same as Property rows */
+    .field.name-row input {
     width: 100%;
     padding: 12px 44px 12px 12px;
     border: 1px solid #e5e7eb;
@@ -82,7 +83,12 @@
     box-sizing: border-box;
     }
 
-    .name-row .icon-btn {
+    /* Camera icon alignment same as Property field */
+    .field.name-row .icon-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(10%); /* slightly lower for optical alignment */
     border: 0;
     background: transparent;
     padding: 6px;
@@ -119,7 +125,7 @@
           <input id="date" type="text" readonly>
         </div>
 
-        <div class="name-row">
+        <div class="field col name-row">
         <label for="name">Name</label>
         <input id="name" type="text" placeholder="Scan or type a name">
         <button class="icon-btn" aria-label="Scan Name" onclick="openScannerForSibling(this)">📷</button>
