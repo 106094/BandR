@@ -90,10 +90,10 @@
           <input id="date" type="text" readonly>
         </div>
 
-        <div class="field col name-row">
-        <label for="name">Name</label>
-        <input id="name" type="text" placeholder="Scan or type a name">
-        <button class="icon-btn" aria-label="Scan Name" onclick="openScannerForSibling(this)">📷</button>
+        <div class="field">
+          <label>Name</label>
+          <input id="name" type="text" placeholder="Scan or type a name">
+          <button class="icon-btn" aria-label="Scan name" onclick="openScanner('name')">📷</button>
         </div>
 
         <div>
@@ -285,6 +285,7 @@ async function openScanner(targetId=null, directInputEl=null) {
     alert("ZXingBrowser not loaded yet");
     return;
   }
+  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
   const codeReader = new BrowserMultiFormatReader();
   currentScanTargetId = targetId;
   document.getElementById('scannerModal').style.display='flex';
