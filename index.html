@@ -16,6 +16,18 @@
     body { margin:0; font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:#f5f7fb; }
     .shell { max-width:680px; margin:0 auto; padding:20px; }
     .card { background:var(--card); border-radius:16px; box-shadow:0 6px 20px rgba(0,0,0,.08); padding:20px; }
+    .card * {
+      box-sizing: border-box;
+    }
+    /* Keep inputs fully inside, not overflowing */
+    .card input[type="text"],
+    .card input[type="datetime-local"],
+    .card textarea,
+    .card select {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
     h1,h2{ margin:0 0 8px }
     .muted{ color:#6b7280; margin-top:0 }
     .row { display:flex; gap:12px; }
@@ -28,7 +40,20 @@
     label { display:block; font-size:13px; color:#374151; margin-bottom:6px; }
     input[type=text] { width:100%; padding:12px 44px 12px 12px; border:1px solid #e5e7eb; border-radius:12px; outline:none; }
     input[readonly] { background:#f9fafb; }
-    .field { position:relative }
+    .field {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .field input {
+      flex: 1;
+    }
+    .field .icon-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
     .icon-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:transparent; padding:6px; cursor:pointer; }
     .prop-row { display:flex; gap:8px; align-items:center }
     .prop-row .remove { border:0; background:transparent; color:#ef4444; font-size:20px; cursor:pointer; }
@@ -40,6 +65,7 @@
     #video { width:100%; background:#000; aspect-ratio:3/4; object-fit:cover }
     .modal .bar { display:flex; gap:8px; padding:10px; background:#0f172a; color:#fff; align-items:center; justify-content:space-between }
     .modal .bar .btn { border-radius:8px; padding:8px 10px; }
+
   </style>
 </head>
 <body>
