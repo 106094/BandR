@@ -6,24 +6,17 @@
   <title>Borrow / Return</title>
   <!-- ZXing for in-browser camera scanning --> 
   <!-- Load ZXing library -->
-  <!-- In <head> is OK for the library -->
-  <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
   </head>
   <body>
-    <!-- ... your page ... -->
+  <script type="module">
+      import {
+        BrowserMultiFormatReader,
+        BrowserCodeReader
+      } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
 
-    <!-- Put sanity check near end of body so document.body exists -->
-    <script>
-      window.addEventListener('DOMContentLoaded', () => {
-        if (!window.ZXingBrowser) {
-          document.body.insertAdjacentHTML(
-            'afterbegin',
-            '<div style="background:#fee;color:#b00;padding:8px;position:fixed;top:0;left:0;width:100%;z-index:9999">⚠️ ZXing failed to load — check network or script URL.</div>'
-          );
-        } else {
-          console.log('✅ ZXingBrowser loaded:', Object.keys(window.ZXingBrowser));
-        }
-      });
+      // Expose a global like the UMD build provides
+      window.ZXingBrowser = { BrowserMultiFormatReader, BrowserCodeReader };
+      console.log('✅ ZXingBrowser via ESM ready');
     </script>
   <style>
     :root { --primary:#4f46e5; --bg:#0b0c10; --card:#ffffff; }
