@@ -58,7 +58,38 @@
     #video { width:100%; background:#000; aspect-ratio:3/4; object-fit:cover }
     .modal .bar { display:flex; gap:8px; padding:10px; background:#0f172a; color:#fff; align-items:center; justify-content:space-between }
     .modal .bar .btn { border-radius:8px; padding:8px 10px; }
+    .name-row {
+    display: flex;
+    flex-direction: column; /* label on top, input below */
+    position: relative;
+    }
 
+    .name-row label {
+    font-size: 13px;
+    color: #374151;
+    margin-bottom: 6px;
+    }
+
+    .name-row input {
+    width: 100%;
+    padding: 12px 44px 12px 12px; /* same as property input */
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    outline: none;
+    box-sizing: border-box;
+    }
+
+    /* reuse camera button positioning */
+    .name-row .icon-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(20%); /* shift slightly down to align with input */
+    border: 0;
+    background: transparent;
+    padding: 6px;
+    cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -90,10 +121,10 @@
           <input id="date" type="text" readonly>
         </div>
 
-        <div class="field">
-          <label>Name</label>
-          <input id="name" type="text" placeholder="Scan or type a name">
-          <button class="icon-btn" aria-label="Scan name" onclick="openScanner('name')">📷</button>
+        <div class="field col name-row">
+        <label for="name">Name</label>
+        <input id="name" type="text" placeholder="Scan or type a name">
+        <button class="icon-btn" aria-label="Scan Name" onclick="openScannerForSibling(this)">📷</button>
         </div>
 
         <div>
@@ -285,7 +316,6 @@ async function openScanner(targetId=null, directInputEl=null) {
     alert("ZXingBrowser not loaded yet");
     return;
   }
-  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
   const codeReader = new BrowserMultiFormatReader();
   currentScanTargetId = targetId;
   document.getElementById('scannerModal').style.display='flex';
