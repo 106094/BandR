@@ -217,7 +217,7 @@ async function openScanner(targetId=null, directInputEl=null){
     // }
 
   } catch (e) {
-    toast('Camera error: ' + e.name + ' — ' + e.message);
+   toast(`Camera error: ${e.name || 'Error'} — ${e.message || e}`);
     // Common iOS errors to watch:
     // NotAllowedError -> permissions
     // NotFoundError   -> no camera or blocked
