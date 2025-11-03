@@ -6,10 +6,10 @@
   <title>Borrow / Return</title>
   <!-- ZXing for in-browser camera scanning --> 
   <!-- Load ZXing library -->
-  <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
   <script>
-    // now available as window.ZXingBrowser
     const reader = new ZXingBrowser.BrowserMultiFormatReader();
+    console.log('ZXingBrowser loaded?', !!window.ZXingBrowser);
   </script>
   <style>
     :root { --primary:#4f46e5; --bg:#0b0c10; --card:#ffffff; }
