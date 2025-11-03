@@ -60,24 +60,22 @@
     .modal .bar .btn { border-radius:8px; padding:8px 10px; }
     /* Ensure consistent spacing/alignment with Date & Properties */
     .field.name-row {
-  display: flex;
-  align-items: center;      /* vertically center label and input */
-  gap: 12px;                /* spacing between label and input */
-  position: relative;
-}
-
-    /* Label aligns left and matches Date/Property style */
-    .field.name-row label {
-    width: 100px;             /* adjust width to match “Date” label */
-    text-align: right;        /* align text edge to input edge */
-    font-size: 13px;
-    color: #374151;
-    margin: 0;                /* remove bottom margin since now in row */
+    display: flex;
+    flex-direction: column;   /* stack label above input */
+    position: relative;
     }
 
-    /* Input same style as Properties */
+    /* Label — center horizontally to look balanced */
+    .field.name-row label {
+    font-size: 13px;
+    color: #374151;
+    margin-bottom: 6px;
+    text-align: center;       /* center the label text */
+    }
+
+    /* Input box same as properties */
     .field.name-row input {
-    flex: 1;
+    width: 100%;
     padding: 12px 44px 12px 12px;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
@@ -85,17 +83,17 @@
     box-sizing: border-box;
     }
 
-    /* Camera icon aligned correctly */
+    /* 📷 button positioned correctly again */
     .field.name-row .icon-btn {
     position: absolute;
     right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
+    bottom: 10px;             /* stay aligned inside input */
     border: 0;
     background: transparent;
     padding: 6px;
     cursor: pointer;
     }
+
   </style>
 </head>
 <body>
