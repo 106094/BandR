@@ -277,6 +277,13 @@ if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
 }
 /** ====== SCANNER ====== */
 async function openScanner(targetId=null, directInputEl=null) {
+      // make sure ZXingBrowser is ready
+  if (!window.ZXingBrowser) {
+    alert("ZXingBrowser not loaded yet");
+    return;
+  }
+  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
+  const codeReader = new BrowserMultiFormatReader();
   currentScanTargetId = targetId;
   document.getElementById('scannerModal').style.display='flex';
 
@@ -286,9 +293,6 @@ async function openScanner(targetId=null, directInputEl=null) {
   video.muted = true;
   video.onplaying = () => toast('Camera running');
   video.onloadedmetadata = () => video.play().catch(()=>{});
-
-  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
-  const codeReader = new BrowserMultiFormatReader();
 
   const cb = (result, err) => {
     if (result) {
