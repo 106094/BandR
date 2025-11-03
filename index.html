@@ -6,18 +6,11 @@
   <title>Borrow / Return</title>
   <!-- ZXing for in-browser camera scanning --> 
   <!-- Load ZXing library -->
-  </head>
-  <body>
-  <script type="module">
-      import {
-        BrowserMultiFormatReader,
-        BrowserCodeReader
-      } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
-
-      // Expose a global like the UMD build provides
-      window.ZXingBrowser = { BrowserMultiFormatReader, BrowserCodeReader };
-      console.log('✅ ZXingBrowser via ESM ready');
-    </script>
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
+  <script>
+    // now available as window.ZXingBrowser
+    const reader = new ZXingBrowser.BrowserMultiFormatReader();
+  </script>
   <style>
     :root { --primary:#4f46e5; --bg:#0b0c10; --card:#ffffff; }
     body { margin:0; font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:#f5f7fb; }
@@ -186,50 +179,7 @@ function removeRow(btn){
   row && wrap.removeChild(row);
 }
 
-/** ====== SCANNER ====== */
-async function openScanner(targetId=null, directInputEl=null) {
-  currentScanTargetId = targetId;
-  document.getElementById('scannerModal').style.display='flex';
 
-  const video = document.getElementById('video');
-  video.setAttribute('playsinline', 'true');
-  video.setAttribute('autoplay', 'true');
-  video.muted = true;
-  video.onplaying = () => toast('Camera running');
-  video.onloadedmetadata = () => video.play().catch(()=>{});
-
-  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
-  const codeReader = new BrowserMultiFormatReader();
-
-  const cb = (result, err) => {
-    if (result) {
-      const text = result.getText();
-      if (directInputEl) {
-        directInputEl.value = text;
-        directInputEl.dispatchEvent(new Event('input', {bubbles:true}));
-      } else if (currentScanTargetId) {
-        const el = document.getElementById(currentScanTargetId);
-        if (el) el.value = text;
-      }
-      closeScanner();
-      toast('Scanned');
-    }
-  };
-
-  try {
-    await codeReader.decodeFromVideoDevice(null, video, cb);           // trigger permission
-    await new Promise(r => setTimeout(r, 1200));                       // small settle delay
-    const devices = await BrowserCodeReader.listVideoInputDevices();   // now labels are available
-    const back = devices.find(d => /back|rear|environment/i.test(d.label));
-    if (back) {
-      codeReader.reset();
-      await codeReader.decodeFromVideoDevice(back.deviceId, video, cb);
-      toast('Switched to back camera');
-    }
-  } catch (e) {
-    toast(`Camera error: ${e.name || 'Error'} — ${e.message || e}`);
-  }
-} 
 
 
 async function toggleTorch(){
@@ -290,6 +240,50 @@ async function submitForm(){
 if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
   document.body.innerHTML = '<div class="shell"><div class="card"><h2>HTTPS required</h2><p>Camera access needs HTTPS. Please host this page on HTTPS (GitHub Pages / Netlify) or run locally at http://localhost.</p></div></div>';
 }
+/** ====== SCANNER ====== */
+async function openScanner(targetId=null, directInputEl=null) {
+  currentScanTargetId = targetId;
+  document.getElementById('scannerModal').style.display='flex';
+
+  const video = document.getElementById('video');
+  video.setAttribute('playsinline', 'true');
+  video.setAttribute('autoplay', 'true');
+  video.muted = true;
+  video.onplaying = () => toast('Camera running');
+  video.onloadedmetadata = () => video.play().catch(()=>{});
+
+  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
+  const codeReader = new BrowserMultiFormatReader();
+
+  const cb = (result, err) => {
+    if (result) {
+      const text = result.getText();
+      if (directInputEl) {
+        directInputEl.value = text;
+        directInputEl.dispatchEvent(new Event('input', {bubbles:true}));
+      } else if (currentScanTargetId) {
+        const el = document.getElementById(currentScanTargetId);
+        if (el) el.value = text;
+      }
+      closeScanner();
+      toast('Scanned');
+    }
+  };
+
+  try {
+    await codeReader.decodeFromVideoDevice(null, video, cb);           // trigger permission
+    await new Promise(r => setTimeout(r, 1200));                       // small settle delay
+    const devices = await BrowserCodeReader.listVideoInputDevices();   // now labels are available
+    const back = devices.find(d => /back|rear|environment/i.test(d.label));
+    if (back) {
+      codeReader.reset();
+      await codeReader.decodeFromVideoDevice(back.deviceId, video, cb);
+      toast('Switched to back camera');
+    }
+  } catch (e) {
+    toast(`Camera error: ${e.name || 'Error'} — ${e.message || e}`);
+  }
+} 
 </script>
 </body>
 </html>
