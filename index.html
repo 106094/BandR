@@ -167,6 +167,15 @@ function openForm(selected){
 }
 
 /** ====== PROPERTY ROWS ====== */
+function updateRemoveButtons() {
+  const rows = document.querySelectorAll('#props .prop-row');
+  rows.forEach((row) => {
+    const btn = row.querySelector('.remove');
+    if (!btn) return;
+    btn.style.display = rows.length > 1 ? 'inline-block' : 'none';
+  });
+}
+
 function addPropertyRow(value=''){
   const wrap = document.getElementById('props');
   const idx = wrap.children.length;
@@ -186,7 +195,9 @@ function addPropertyRow(value=''){
   input.addEventListener('input', ()=>{
     const isLast = row === wrap.lastElementChild;
     if (isLast && input.value.trim()!=='') addPropertyRow();
+     updateRemoveButtons(); 
   }, {once:false});
+   updateRemoveButtons(); 
 }
 
 function maybeAutogrow(input){
@@ -203,10 +214,8 @@ function removeRow(btn){
   if (wrap.children.length <= 1) { toast('Keep at least one line'); return; }
   const row = btn.closest('.prop-row');
   row && wrap.removeChild(row);
+   updateRemoveButtons(); 
 }
-
-
-
 
 async function toggleTorch(){
   try{
