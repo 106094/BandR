@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Borrow / Return</title>
+  <!-- ZXing for in-browser camera scanning -->
+  <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
+  <style>
+    :root { --primary:#4f46e5; --bg:#0b0c10; --card:#ffffff; }
+    body { margin:0; font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:#f5f7fb; }
+    .shell { max-width:680px; margin:0 auto; padding:20px; }
+    .card { background:var(--card); border-radius:16px; box-shadow:0 6px 20px rgba(0,0,0,.08); padding:20px; }
+    h1,h2{ margin:0 0 8px }
+    .muted{ color:#6b7280; margin-top:0 }
+    .row { display:flex; gap:12px; }
+    .col { flex:1 }
+    .btn { appearance:none; border:0; border-radius:12px; padding:12px 16px; font-weight:600; cursor:pointer; }
+    .btn.primary { background:var(--primary); color:#fff; }
+    .btn.ghost { background:#eef2ff; color:#3730a3; }
+    .btn.full { width:100% }
+    .grid { display:grid; gap:12px }
+    label { display:block; font-size:13px; color:#374151; margin-bottom:6px; }
+    input[type=text] { width:100%; padding:12px 44px 12px 12px; border:1px solid #e5e7eb; border-radius:12px; outline:none; }
+    input[readonly] { background:#f9fafb; }
+    .field { position:relative }
+    .icon-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:transparent; padding:6px; cursor:pointer; }
+    .prop-row { display:flex; gap:8px; align-items:center }
+    .prop-row .remove { border:0; background:transparent; color:#ef4444; font-size:20px; cursor:pointer; }
+    .divider { height:1px; background:#e5e7eb; margin:8px 0 4px }
+    .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 14px; border-radius:999px; font-size:14px; display:none }
+    /* Scanner modal */
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; }
+    .modal > .sheet { background:#000; width:min(720px, 96vw); border-radius:16px; overflow:hidden; }
+    #video { width:100%; background:#000; aspect-ratio:3/4; object-fit:cover }
+    .modal .bar { display:flex; gap:8px; padding:10px; background:#0f172a; color:#fff; align-items:center; justify-content:space-between }
+    .modal .bar .btn { border-radius:8px; padding:8px 10px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="card" id="home">
+      <h1>Borrow / Return</h1>
+      <p class="muted">Choose an action</p>
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary full" onclick="openForm('Borrow')">Borrow</button>
+        <button class="btn ghost full" onclick="openForm('Return')">Return</button>
+      </div>
+    </div>
+
+    <div class="card" id="formCard" style="display:none; margin-top:16px">
+      <h2 id="formTitle">Form</h2>
+      <div class="grid" style="margin-top:12px">
+        <div>
+          <label>Date</label>
+          <input id="date" type="text" readonly>
+        </div>
+
+        <div class="field">
+          <label>Name</label>
+          <input id="name" type="text" placeholder="Scan or type a name">
+          <button class="icon-btn" aria-label="Scan name" onclick="openScanner('name')">📷</button>
+        </div>
+
+        <div>
+          <div class="row" style="align-items:center; justify-content:space-between">
+            <label style="margin:0">Property ID(s)</label>
+            <button class="btn ghost" onclick="addPropertyRow()">+ Add line</button>
+          </div>
+          <div id="props" class="grid" style="margin-top:8px"></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="row">
+          <button class="btn full" onclick="goHome()">Back</button>
+          <button class="btn primary full" onclick="submitForm()">Confirm / Submit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scanner modal -->
+  <div class="modal" id="scannerModal" role="dialog" aria-modal="true" aria-label="Scanner">
+    <div class="sheet">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="bar">
+        <div>Point camera at a QR code…</div>
+        <div>
+          <button class="btn" onclick="toggleTorch()">Toggle torch</button>
+          <button class="btn" onclick="closeScanner()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/** ====== CONFIG ====== */
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzoZUVTfbtIAgnyjNm2feyn7rZtIRwxzG9dwUwBvVSlJIet0dVv9wIFTsRRu9nL1pO1dA/exec'; 
+
+/** ====== STATE ====== */
+let mode = 'Borrow';
+let currentScanTargetId = null;
+let codeReader = null;
+let currentDeviceId = null;
+let torchOn = false;
+
+/** ====== UTILS ====== */
+function fmtDate(d=new Date()){
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function toast(msg, ms=2000){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display='block';
+  clearTimeout(el._t); el._t = setTimeout(()=> el.style.display='none', ms);
+}
+function goHome(){
+  stopScanner();
+  document.getElementById('formCard').style.display='none';
+  document.getElementById('home').style.display='block';
+}
+
+/** ====== HOME -> FORM ====== */
+function openForm(selected){
+  mode = selected;
+  document.getElementById('home').style.display='none';
+  document.getElementById('formCard').style.display='block';
+  document.getElementById('formTitle').textContent = `${mode} Form`;
+  document.getElementById('date').value = fmtDate();
+  document.getElementById('name').value = '';
+  const wrap = document.getElementById('props');
+  wrap.innerHTML = '';
+  addPropertyRow(); // start with one
+}
+
+/** ====== PROPERTY ROWS ====== */
+function addPropertyRow(value=''){
+  const wrap = document.getElementById('props');
+  const idx = wrap.children.length;
+  const row = document.createElement('div');
+  row.className = 'prop-row';
+  row.innerHTML = `
+    <div class="field col">
+      <input type="text" placeholder="Property ID" value="${value.replaceAll('"','&quot;')}" oninput="maybeAutogrow(this)">
+      <button class="icon-btn" aria-label="Scan Property" onclick="openScannerForSibling(this)">📷</button>
+    </div>
+    <button class="remove" title="Remove" onclick="removeRow(this)">✕</button>
+  `;
+  wrap.appendChild(row);
+  maybeAutogrow(row.querySelector('input'));
+  // Auto-add a new empty line when last line gets non-empty
+  const input = row.querySelector('input');
+  input.addEventListener('input', ()=>{
+    const isLast = row === wrap.lastElementChild;
+    if (isLast && input.value.trim()!=='') addPropertyRow();
+  }, {once:false});
+}
+
+function maybeAutogrow(input){
+  // noop placeholder; could auto-resize if needed
+}
+
+function openScannerForSibling(btn){
+  const input = btn.parentElement.querySelector('input');
+  input && openScanner(null, input);
+}
+
+function removeRow(btn){
+  const wrap = document.getElementById('props');
+  if (wrap.children.length <= 1) { toast('Keep at least one line'); return; }
+  const row = btn.closest('.prop-row');
+  row && wrap.removeChild(row);
+}
+
+/** ====== SCANNER ====== */
+async function openScanner(targetId=null, directInputEl=null){
+  currentScanTargetId = targetId; // 'name' or null
+  document.getElementById('scannerModal').style.display='flex';
+
+  // Pick back camera
+  codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+  const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+  const back = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
+  currentDeviceId = back?.deviceId;
+
+  const video = document.getElementById('video');
+
+  try{
+    await codeReader.decodeFromVideoDevice(currentDeviceId, video, (result, err, controls)=>{
+      if(result){
+        const text = result.getText();
+        // Fill target
+        if (directInputEl) {
+          directInputEl.value = text;
+          // trigger input event to maybe auto-add a line
+          directInputEl.dispatchEvent(new Event('input', {bubbles:true}));
+        } else if (currentScanTargetId) {
+          const el = document.getElementById(currentScanTargetId);
+          if (el) el.value = text;
+        }
+        closeScanner();
+        toast('Scanned');
+      }
+    });
+  }catch(e){
+    toast('Camera error: ' + e);
+  }
+}
+
+async function toggleTorch(){
+  try{
+    const stream = document.getElementById('video').srcObject;
+    const track = stream?.getVideoTracks?.()[0];
+    if (!track) return;
+    const caps = track.getCapabilities?.();
+    if (!caps || !caps.torch) { toast('Torch not supported'); return; }
+    torchOn = !torchOn;
+    await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+  }catch(e){ toast('Torch failed'); }
+}
+
+function stopScanner(){
+  try{
+    codeReader && codeReader.reset();
+  }catch{} finally{
+    codeReader = null;
+    torchOn = false;
+  }
+}
+
+function closeScanner(){
+  document.getElementById('scannerModal').style.display='none';
+  stopScanner();
+}
+
+/** ====== SUBMIT ====== */
+async function submitForm(){
+  const date = document.getElementById('date').value.trim();
+  const name = document.getElementById('name').value.trim();
+  const ids = Array.from(document.querySelectorAll('#props .prop-row input'))
+              .map(i=>i.value.trim()).filter(Boolean);
+
+  if (!ids.length) { toast('Enter at least one Property ID'); return; }
+
+  const payload = { mode, date, name, propertyIds: ids };
+
+  // NOTE: Apps Script often redirects (302) and lacks CORS headers.
+  // Use no-cors fire-and-forget; we assume success if fetch doesn't throw.
+  try{
+    await fetch(SCRIPT_URL, {
+      method:'POST',
+      mode:'no-cors', // avoids CORS preflight; can't read response
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(payload),
+    });
+    toast(`Submitted ${ids.length} item(s)`);
+    // Return to home after a short delay
+    setTimeout(()=> goHome(), 400);
+  }catch(e){
+    toast('Submit failed: ' + e);
+  }
+}
+
+/** ====== BOOT ====== */
+if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
+  document.body.innerHTML = '<div class="shell"><div class="card"><h2>HTTPS required</h2><p>Camera access needs HTTPS. Please host this page on HTTPS (GitHub Pages / Netlify) or run locally at http://localhost.</p></div></div>';
+}
+</script>
+</body>
+</html>
