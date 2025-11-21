@@ -62,16 +62,29 @@
   </style>
 </head>
 <body>
-     <script type="module">
-    import {
-      BrowserMultiFormatReader,
-      BrowserCodeReader
-    } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
+<script type="module">
+  import {
+    BrowserMultiFormatReader,
+    BrowserCodeReader,
+    BarcodeFormat,
+    DecodeHintType
+  } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.6/+esm';
 
-    // Expose a global like the UMD build provides
-    window.ZXingBrowser = { BrowserMultiFormatReader, BrowserCodeReader };
-    console.log('✅ ZXingBrowser via ESM ready');
-  </script>
+  // build hints once, reuse
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.QR_CODE,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8
+  ]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+
+  window.ZXingBrowser = { BrowserMultiFormatReader, BrowserCodeReader, hints };
+  console.log('✅ ZXingBrowser via ESM + hints ready');
+</script>
+
   <div class="shell">
     <div class="card" id="home">
       <h1>Borrow / Return / Inventory</h1>
@@ -304,50 +317,49 @@ if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
 }
 /** ====== SCANNER ====== */
 async function openScanner(targetId=null, directInputEl=null) {
-   stopScanner();
-      // make sure ZXingBrowser is ready
-  if (!window.ZXingBrowser) {
-    alert("ZXingBrowser not loaded yet");
-    return;
-  }
+  if (!window.ZXingBrowser) { alert("ZXingBrowser not loaded yet"); return; }
+  const { BrowserMultiFormatReader, BrowserCodeReader, hints } = window.ZXingBrowser;
+  codeReader = new BrowserMultiFormatReader(hints);
   currentInputEl = directInputEl || (targetId ? document.getElementById(targetId) : null);
-  const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
-  codeReader = new BrowserMultiFormatReader();
-  currentScanTargetId = targetId;
+
   document.getElementById('scannerModal').style.display='flex';
 
   const video = document.getElementById('video');
   video.setAttribute('playsinline', 'true');
   video.setAttribute('autoplay', 'true');
   video.muted = true;
-  video.onplaying = () => toast('Camera running');
-  video.onloadedmetadata = () => video.play().catch(()=>{});
 
-const cb = (result, err) => {
-  if (!result) return;
-  const text = result.getText();
-
-  if (currentInputEl) {
-    currentInputEl.value = text;
-    currentInputEl.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
-  // clear and close
-  currentInputEl = null;
-  closeScanner();
-  toast('Scanned');
-};
+  const cb = (result, err) => {
+    if (!result) return;
+    const text = result.getText();
+    if (currentInputEl) {
+      currentInputEl.value = text;
+      currentInputEl.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+    currentInputEl = null;
+    closeScanner();
+    toast('Scanned');
+  };
 
   try {
-    await codeReader.decodeFromVideoDevice(null, video, cb);           // trigger permission
-    await new Promise(r => setTimeout(r, 1200));                       // small settle delay
-    const devices = await BrowserCodeReader.listVideoInputDevices();   // now labels are available
-    const back = devices.find(d => /back|rear|environment/i.test(d.label));
-    if (back) {
-      codeReader.reset();
-      await codeReader.decodeFromVideoDevice(back.deviceId, video, cb);
-      toast('Switched to back camera');
-    }
+    // 1) Ask browser for a decent resolution from the back camera
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width:  { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+    video.srcObject = stream;
+    await new Promise(r => {
+      video.onloadedmetadata = () => {
+        video.play().catch(()=>{});
+        r();
+      };
+    });
+
+    // 2) Let ZXing decode continuously from this video element
+    await codeReader.decodeFromVideoElement(video, cb);
   } catch (e) {
     toast(`Camera error: ${e.name || 'Error'} — ${e.message || e}`);
   }
