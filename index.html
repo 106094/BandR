@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Borrow / Return</title>
+  <title>Borrow / Return / Inventory</title>
   <style>
     :root { --primary:#4f46e5; --bg:#0b0c10; --card:#ffffff; }
     body { margin:0; font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:#f5f7fb; }
@@ -74,11 +74,12 @@
   </script>
   <div class="shell">
     <div class="card" id="home">
-      <h1>Borrow / Return</h1>
+      <h1>Borrow / Return / Inventory</h1>
       <p class="muted">Choose an action</p>
       <div class="row" style="margin-top:12px">
         <button class="btn primary full" onclick="openForm('Borrow')">Borrow</button>
         <button class="btn ghost full" onclick="openForm('Return')">Return</button>
+        <button class="btn ghost full" onclick="openForm('Inventory')">Inventory</button>
       </div>
     </div>
 
