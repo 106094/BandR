@@ -142,7 +142,7 @@ let currentScanTargetId = null;
 let codeReader = null;
 let currentDeviceId = null;
 let torchOn = false;
-
+let currentInputEl = null;
 /** ====== UTILS ====== */
 function fmtDate(d=new Date()){
   const pad = n => String(n).padStart(2,'0');
@@ -283,11 +283,13 @@ if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
 }
 /** ====== SCANNER ====== */
 async function openScanner(targetId=null, directInputEl=null) {
+   stopScanner();
       // make sure ZXingBrowser is ready
   if (!window.ZXingBrowser) {
     alert("ZXingBrowser not loaded yet");
     return;
   }
+  currentInputEl = directInputEl || (targetId ? document.getElementById(targetId) : null);
   const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
   codeReader = new BrowserMultiFormatReader();
   currentScanTargetId = targetId;
@@ -300,20 +302,20 @@ async function openScanner(targetId=null, directInputEl=null) {
   video.onplaying = () => toast('Camera running');
   video.onloadedmetadata = () => video.play().catch(()=>{});
 
-  const cb = (result, err) => {
-    if (result) {
-      const text = result.getText();
-      if (directInputEl) {
-        directInputEl.value = text;
-        directInputEl.dispatchEvent(new Event('input', {bubbles:true}));
-      } else if (currentScanTargetId) {
-        const el = document.getElementById(currentScanTargetId);
-        if (el) el.value = text;
-      }
-      closeScanner();
-      toast('Scanned');
-    }
-  };
+const cb = (result, err) => {
+  if (!result) return;
+  const text = result.getText();
+
+  if (currentInputEl) {
+    currentInputEl.value = text;
+    currentInputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // clear and close
+  currentInputEl = null;
+  closeScanner();
+  toast('Scanned');
+};
 
   try {
     await codeReader.decodeFromVideoDevice(null, video, cb);           // trigger permission
