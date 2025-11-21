@@ -285,23 +285,16 @@ async function submitForm(){
     toast('Name cannot be empty');
     return;
   }
-  
-  // Validate property rows
-  if (!ids.length) {
-    toast('Enter at least one Property ID');
-    return;
-  }
-  
-  // Check for empty lines
-  const emptyIndex = Array.from(
-    document.querySelectorAll('#props .prop-row input')
-  ).findIndex(i => !i.value.trim());
-  
-  if (emptyIndex !== -1) {
-    toast(`Property line #${emptyIndex + 1} is empty`);
-    return;
-  }
-  
+   
+  // Get all values (including blanks)
+ const allInputs = Array.from(document.querySelectorAll('#props .prop-row input'));
+ const ids = allInputs.map(i => i.value.trim()).filter(Boolean);
+
+ // Must have at least one non-empty property ID
+ if (ids.length === 0) {
+   toast('Enter at least one Property ID');
+   return;
+ }
 
   const payload = { mode, date, name, propertyIds: ids };
 
