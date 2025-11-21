@@ -292,9 +292,6 @@ async function submitForm(){
   }
    
  const payload = { mode, date, name, propertyIds: ids };
-  // Get all values (including blanks)
- const allInputs = Array.from(document.querySelectorAll('#props .prop-row input'));
- const ids = allInputs.map(i => i.value.trim()).filter(Boolean);
 
  // Must have at least one non-empty property ID
  if (ids.length === 0) {
