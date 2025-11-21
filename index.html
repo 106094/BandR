@@ -277,15 +277,21 @@ function closeScanner(){
 async function submitForm(){
   const date = document.getElementById('date').value.trim();
   const name = document.getElementById('name').value.trim();
-  const ids = Array.from(document.querySelectorAll('#props .prop-row input'))
-              .map(i=>i.value.trim()).filter(Boolean);
-
+  const allInputs = Array.from(
+    document.querySelectorAll('#props .prop-row input')
+  );
+  const ids = allInputs.map(i => i.value.trim()).filter(Boolean);
   // Validate Name
   if (!name.trim()) {
     toast('Name cannot be empty');
     return;
   }
+  if (ids.length === 0) {
+    toast('Enter at least one Property ID');
+    return;
+  }
    
+ const payload = { mode, date, name, propertyIds: ids };
   // Get all values (including blanks)
  const allInputs = Array.from(document.querySelectorAll('#props .prop-row input'));
  const ids = allInputs.map(i => i.value.trim()).filter(Boolean);
@@ -295,9 +301,6 @@ async function submitForm(){
    toast('Enter at least one Property ID');
    return;
  }
-
-  const payload = { mode, date, name, propertyIds: ids };
-
   // NOTE: Apps Script often redirects (302) and lacks CORS headers.
   // Use no-cors fire-and-forget; we assume success if fetch doesn't throw.
   try{
