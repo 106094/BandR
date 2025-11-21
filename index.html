@@ -190,7 +190,7 @@ function addPropertyRow(value=''){
   row.innerHTML = `
     <div class="field col">
       <input type="text" placeholder="Property ID" value="${value.replaceAll('"','&quot;')}" oninput="maybeAutogrow(this)">
-      <button class="icon-btn" aria-label="Scan Property" onclick="openScannerForSibling(this)">📷</button>
+      <button class="icon-btn" aria-label="Scan Property" onclick="openScanner(null, this.previousElementSibling)">📷</button>
     </div>
     <button class="remove" title="Remove" onclick="removeRow(this)">✕</button>
   `;
@@ -289,7 +289,7 @@ async function openScanner(targetId=null, directInputEl=null) {
     return;
   }
   const { BrowserMultiFormatReader, BrowserCodeReader } = window.ZXingBrowser;
-  const codeReader = new BrowserMultiFormatReader();
+  codeReader = new BrowserMultiFormatReader();
   currentScanTargetId = targetId;
   document.getElementById('scannerModal').style.display='flex';
 
