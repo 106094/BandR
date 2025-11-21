@@ -256,7 +256,28 @@ async function submitForm(){
   const ids = Array.from(document.querySelectorAll('#props .prop-row input'))
               .map(i=>i.value.trim()).filter(Boolean);
 
-  if (!ids.length) { toast('Enter at least one Property ID'); return; }
+  // Validate Name
+  if (!name.trim()) {
+    toast('Name cannot be empty');
+    return;
+  }
+  
+  // Validate property rows
+  if (!ids.length) {
+    toast('Enter at least one Property ID');
+    return;
+  }
+  
+  // Check for empty lines
+  const emptyIndex = Array.from(
+    document.querySelectorAll('#props .prop-row input')
+  ).findIndex(i => !i.value.trim());
+  
+  if (emptyIndex !== -1) {
+    toast(`Property line #${emptyIndex + 1} is empty`);
+    return;
+  }
+  
 
   const payload = { mode, date, name, propertyIds: ids };
 
