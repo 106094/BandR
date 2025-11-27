@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>OCR Camera Crop Tool</title>
+<title>OCR Crop Tool</title>
 
 <style>
     body {
@@ -11,17 +11,28 @@
         background: #111;
         font-family: system-ui;
         color: white;
-        user-select: none;
-        overflow: hidden;
-        touch-action: none;
+        text-align: center;
+    }
+
+    .page { display: none; }
+    .active { display: block; }
+
+    button {
+        padding: 15px 22px;
+        margin: 10px;
+        border: none;
+        border-radius: 10px;
+        font-size: 18px;
+        background: #00c3ff;
+        color: #fff;
     }
 
     #video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
         position: fixed;
         top: 0; left: 0;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
     }
 
     #overlay {
@@ -32,79 +43,76 @@
         touch-action: none;
     }
 
-    .top-bar {
+    .toolbar {
         position: fixed;
-        top: 0;
+        top: 10px;
         width: 100%;
-        padding: 10px;
         text-align: center;
-        background: rgba(0,0,0,0.4);
-        backdrop-filter: blur(8px);
+        z-index: 20;
     }
 
-    button {
-        padding: 10px 16px;
-        margin: 5px;
-        border: none;
-        border-radius: 8px;
-        font-size: 15px;
-        background: #00b3ff;
-        color: #fff;
-        cursor: pointer;
+    #resultText {
+        margin-top: 30px;
+        font-size: 20px;
+        padding: 20px;
+        color: #0ff;
+        white-space: pre-wrap;
     }
-
-    button:active {
-        opacity: 0.7;
-    }
-
-    #ocrResult {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        padding: 15px;
-        background: rgba(0,0,0,0.7);
-        font-size: 18px;
-        text-align: center;
-    }
-
 </style>
 </head>
 <body>
 
-<div class="top-bar">
-    <button id="btnTorch">🔦 Torch</button>
-    <button id="btnClear">Clear</button>
+<!-- ====================== PAGE 1 ====================== -->
+<div id="page1" class="page active">
+    <h2>OCR Camera Tool</h2>
+    <button id="btnStart">Start Camera</button>
+    <div id="resultText">(Result will appear here)</div>
 </div>
 
-<video id="video" autoplay playsinline></video>
-<canvas id="overlay"></canvas>
+<!-- ====================== PAGE 2 (Camera) ====================== -->
+<div id="page2" class="page">
+    <div class="toolbar">
+        <button id="btnClose">Close</button>
+    </div>
 
-<div id="ocrResult">Draw a rectangle around text…</div>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <script>
+// ========== PAGE CONTROL ==========
+const page1 = document.getElementById("page1");
+const page2 = document.getElementById("page2");
+
+function goPage1() {
+    page1.classList.add("active");
+    page2.classList.remove("active");
+}
+function goPage2() {
+    page2.classList.add("active");
+    page1.classList.remove("active");
+}
+
+document.getElementById("btnStart").onclick = startCamera;
+document.getElementById("btnClose").onclick = stopCamera;
+
+
+// ========== CAMERA ==========
+let stream;
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
 const ctx = overlay.getContext("2d");
-const ocrOutput = document.getElementById("ocrResult");
 
-let stream;
-let track;
-let torchEnabled = false;
-
-let drawing = false;
-let startX = 0, startY = 0, endX = 0, endY = 0;
-
-// ========== CAMERA SETUP ==========
 async function startCamera() {
+    goPage2();
+
     stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" }
     });
 
     video.srcObject = stream;
-
-    track = stream.getVideoTracks()[0];
 
     video.onloadedmetadata = () => {
         overlay.width = video.videoWidth;
@@ -112,60 +120,57 @@ async function startCamera() {
     };
 }
 
-startCamera();
-
-// ========== TORCH ==========
-document.getElementById("btnTorch").addEventListener("click", () => {
-    if (!track) return;
-
-    torchEnabled = !torchEnabled;
-    track.applyConstraints({
-        advanced: [{ torch: torchEnabled }]
-    }).catch(e => console.log("Torch error:", e));
-});
-
-// ========== CLEAR ==========
-document.getElementById("btnClear").addEventListener("click", () => {
+function stopCamera() {
+    if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+    }
     ctx.clearRect(0,0,overlay.width,overlay.height);
-    ocrOutput.textContent = "Draw a rectangle around text…";
-});
+    goPage1();
+}
 
-// ========== POSITION HELPER ==========
+
+// ========== DRAWING ==========
+let drawing = false;
+let startX, startY, endX, endY;
+
 function getPos(e) {
     const rect = overlay.getBoundingClientRect();
+
+    let clientX, clientY;
+
     if (e.touches) {
-        return {
-            x: e.touches[0].clientX - rect.left,
-            y: e.touches[0].clientY - rect.top
-        };
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
     }
+
+    // Convert CSS pixels → video pixels
+    const scaleX = video.videoWidth / rect.width;
+    const scaleY = video.videoHeight / rect.height;
+
     return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
     };
 }
 
-// ========== MASK DRAW ==========
 function redrawMask() {
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    ctx.clearRect(0,0,overlay.width,overlay.height);
 
-    // Darken outside
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(0, 0, overlay.width, overlay.height);
+    ctx.fillRect(0,0,overlay.width,overlay.height);
 
     const w = endX - startX;
     const h = endY - startY;
 
-    // Clear inside box
     ctx.clearRect(startX, startY, w, h);
-
-    // Border
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.strokeRect(startX, startY, w, h);
 }
 
-// ========== DRAW EVENTS ==========
 function startDraw(e) {
     drawing = true;
     const p = getPos(e);
@@ -187,7 +192,7 @@ function endDraw() {
     if (!drawing) return;
     drawing = false;
     redrawMask();
-    captureAndOCR();
+    snapshotAndOCR();
 }
 
 overlay.addEventListener("mousedown", startDraw);
@@ -198,30 +203,32 @@ overlay.addEventListener("touchstart", startDraw);
 overlay.addEventListener("touchmove", moveDraw);
 overlay.addEventListener("touchend", endDraw);
 
-// ========== CAPTURE & OCR ==========
-async function captureAndOCR() {
-    let w = endX - startX;
-    let h = endY - startY;
+
+// ========== SNAPSHOT + OCR ==========
+async function snapshotAndOCR() {
+    const w = endX - startX;
+    const h = endY - startY;
 
     if (w < 10 || h < 10) return;
 
-    let output = document.createElement("canvas");
-    output.width = Math.abs(w);
-    output.height = Math.abs(h);
-    let octx = output.getContext("2d");
+    // Create snapshot canvas
+    let snap = document.createElement("canvas");
+    snap.width = Math.abs(w);
+    snap.height = Math.abs(h);
+    let sctx = snap.getContext("2d");
 
-    octx.drawImage(video, startX, startY, w, h, 0, 0, output.width, output.height);
+    sctx.drawImage(video, startX, startY, w, h, 0, 0, snap.width, snap.height);
 
-    ocrOutput.textContent = "Processing OCR…";
+    stopCamera(); // close camera and go back to page 1
 
-    // Tesseract OCR
-    const res = await Tesseract.recognize(output, 'eng', {
-        logger: () => {}
-    });
+    document.getElementById("resultText").textContent = "OCR running...";
 
-    const text = res.data.text.trim();
+    const res = await Tesseract.recognize(snap, 'eng');
 
-    ocrOutput.textContent = text || "(No readable text)";
+    let txt = res.data.text.trim();
+    if (!txt) txt = "(No text found)";
+
+    document.getElementById("resultText").textContent = txt;
 }
 </script>
 
