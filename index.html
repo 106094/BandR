@@ -34,10 +34,7 @@
 <body>
 
 
-  /** ====== BOOT ====== */
-if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
-  document.body.innerHTML = '<div class="shell"><div class="card"><h2>HTTPS required</h2><p>Camera access needs HTTPS.</p></div></div>';
-}
+
 
   <h1>QR / Barcode + OCR Scanner</h1>
   <button onclick="openScanner()">Start Camera</button>
@@ -54,6 +51,10 @@ if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
   </div>
 
   <script type="module">
+      /** ====== BOOT ====== */
+if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
+  document.body.innerHTML = '<div class="shell"><div class="card"><h2>HTTPS required</h2><p>Camera access needs HTTPS.</p></div></div>';
+}
     import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
 
     const modal   = document.getElementById('scannerModal');
