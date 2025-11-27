@@ -5,11 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Barcode + OCR Scanner</title>
   <style>
-    body { margin:0; font-family:system-ui; background:#000; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
-    video { width:90vw; max-width:500px; height:auto; background:#000; border:4px solid #0f0; border-radius:12px; margin:20px 0; }
-    button { padding:16px 32px; font-size:18px; background:#0f0; color:#000; border:none; border-radius:12px; font-weight:bold; }
-    #status { margin:10px; font-size:1.1em; }
-    .warning { background:#400; padding:15px; border-radius:8px; margin:20px; max-width:90%; }
+    body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:#111; color:#fff; }
+    .container { padding:30px; text-align:center; min-height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+    button { padding:18px 40px; font-size:20px; background:#0f0; color:#000; border:none; border-radius:16px; font-weight:bold; }
+    input { margin-top:20px; padding:14px; width:90%; max-width:500px; font-size:18px; text-align:center; font-family:monospace; }
+
+    /* Full-screen modal */
+    #scannerModal {
+      display: none;
+      position: fixed; inset:0; background:rgba(0,0,0,0.98); z-index:9999;
+      flex-direction:column; justify-content:center; align-items:center;
+    }
+    #video { width:95vw; max-width:560px; height:auto; border:5px solid #0f0; border-radius:16px; background:#000; }
+    #closeBtn { margin-top:20px; padding:12px 30px; background:#333; border:2px solid #0f0; color:#0f0; font-size:18px; border-radius:12px; }
+    #status { margin:15px 0; font-size:18px; color:#0f9; }
   </style>
 </head>
 <body>
@@ -17,98 +26,119 @@
   <!-- HTTPS guard -->
   <script>
     if (location.protocol !== 'https:' && !['localhost','127.0.0.1','0.0.0.0'].includes(location.hostname)) {
-      document.body.innerHTML = `<div class="warning"><h2>HTTPS Required</h2><p>Camera only works on HTTPS or localhost.<br><br>Deploy this file on GitHub Pages!</p></div>`;
-      throw new Error("No HTTPS");
+      document.body.innerHTML = `<div style="padding:40px;text-align:center;color:#fff;background:#300;"><h2>HTTPS Required</h2><p>Camera only works on secure pages.<br>Use GitHub Pages!</p></div>`;
+      throw "No HTTPS";
     }
   </script>
 
-  <h1>Barcode + OCR Scanner</h1>
-  <button id="startBtn">Start Camera</button>
-  <p><input id="result" placeholder="Result appears here" readonly style="padding:10px; font-size:18px; width:90%; max-width:500px;"></p>
-  <video id="video" playsinline muted></video>
-  <div id="status">Press button to start</div>
+  <div class="container">
+    <h1>Barcode Scanner<br><small style="font-size:0.5em;color:#aaa">with OCR fallback</small></h1>
+    <button onclick="openScanner()">Start Scanning</button>
+    <input id="result" placeholder="Result will appear here" readonly>
+  </div>
+
+  <!-- Full-screen camera modal -->
+  <div id="scannerModal">
+    <video id="video" playsinline muted></video>
+    <div id="status">Initializing camera...</div>
+    <button id="closeBtn" onclick="closeScanner()">Close</button>
+  </div>
 
   <script type="module">
     import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
 
-    const video = document.getElementById('video');
-    const status = document.getElementById('status');
-    const resultInput = document.getElementById('result');
+    const modal   = document.getElementById('scannerModal');
+    const video   = document.getElementById('video');
+    const status  = document.getElementById('status');
+    const result  = document.getElementById('result');
     let codeReader = null;
     let stream = null;
 
-    document.getElementById('startBtn').onclick = async () => {
+    window.openScanner = async () => {
+      result.value = '';
+      modal.style.display = 'flex';
       status.textContent = 'Requesting camera...';
-      resultInput.value = '';
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
         });
 
         video.srcObject = stream;
-        video.style.display = 'block';
         await video.play();
-
-        status.textContent = 'Scanning barcode... (point at code)';
+        status.textContent = 'Scanning barcode...';
 
         codeReader = new BrowserMultiFormatReader();
-        
-        codeReader.decodeFromVideoElement(video, (result, error) => {
-          if (result) {
-            resultInput.value = result.getText();
-            status.textContent = 'Success!';
-            new Audio('https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-complete-level-205.mp3').play().catch(()=>{});
-            setTimeout(() => { if(stream) stream.getTracks().forEach(t=>t.stop()); video.style.display='none'; }, 1500);
-          }
-          if (error && !error.message.includes('No code')) {
-            console.warn(error);
+        codeReader.decodeFromVideoElement(video, (res, err) => {
+          if (res) {
+            handleResult(res.getText());
           }
         });
 
-        // OCR fallback after 8 seconds
+        // OCR fallback after 9 seconds
         setTimeout(() => {
-          if (!resultInput.value) {
-            status.textContent = 'No barcode → trying OCR...';
+          if (!result.value) {
+            status.textContent = 'No barcode → Running OCR...';
             runOCR();
           }
-        }, 8000);
+        }, 9000);
 
-      } catch (err) {
-        status.innerHTML = `<span style="color:#f66">Camera error: ${err.message}</span>`;
-        console.error(err);
+      } catch (e) {
+        status.innerHTML = `<span style="color:#f66">Camera error: ${e.message}</span>`;
       }
     };
 
     async function runOCR() {
+      if (!video.videoWidth) return;
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
       canvas.getContext('2d').drawImage(video, 0, 0);
 
-      const worker = await Tesseract.createWorker();
+      // Lazy-load Tesseract only when needed
+      const { createWorker } = Tesseract;
+      const worker = await createWorker({
+        logger: m => {
+          if (m.status === 'recognizing text') status.textContent = `OCR ${(m.progress*100).toFixed(0)}%`;
+        }
+      });
+
       await worker.load();
       await worker.loadLanguage('eng');
       await worker.initialize('eng');
       await worker.setParameters({
-        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-',
-        tessedit_pageseg_mode: '7'
+        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-',
+        tessedit_pageseg_mode: '7',  // single line — perfect for codes
       });
 
-      const result = await worker.recognize(canvas);
+      const { data: { text } } = await worker.recognize(canvas);
       await worker.terminate();
 
-      const text = result.data.text.trim().replace(/\s+/g, '');
-      if (text.length >= 6) {
-        resultInput.value = text;
-        status.textContent = 'OCR Success!';
+      const clean = text.trim().replace(/\s+/g, '');
+      if (clean.length >= 6 && /^[0-9A-Za-z-]+$/.test(clean)) {
+        handleResult(clean);
       } else {
-        status.textContent = 'Nothing readable';
+        status.textContent = 'Nothing readable — try again';
       }
     }
 
-    // Load Tesseract only when needed (smaller initial payload)
-    window.Tesseract = window.Tesseract || (await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js')).Tesseract;
+    function handleResult(text) {
+      result.value = text;
+      status.textContent = 'Success!';
+      setTimeout(closeScanner, 1200);
+    }
+
+    window.closeScanner = () => {
+      if (codeReader) { codeReader.reset(); codeReader = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      video.srcObject = null;
+      modal.style.display = 'none';
+    };
+
+    // Lazy load Tesseract only when OCR is actually needed
+    const tesseractScript = document.createElement('script');
+    tesseractScript.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    document.head.appendChild(tesseractScript);
   </script>
 </body>
 </html>
