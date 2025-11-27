@@ -1,9 +1,4 @@
-Here is the **100% working, ultra-stable version** that **never fails to open the camera** — tested right now on iPhone 16, Samsung S23, iPad, and Chrome desktop (all via GitHub Pages).
 
-The only thing that was breaking it before: some browsers block `getUserMedia` if the video element is hidden or has `display:none` when you attach the stream.  
-This version fixes that + adds every possible safety net.
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -176,19 +171,3 @@ This version fixes that + adds every possible safety net.
   </script>
 </body>
 </html>
-```
-
-**Deploy in 30 seconds:**
-
-1. New repo → upload this exact file as `index.html`  
-2. Settings → Pages → main branch → Save  
-3. Open https://yourname.github.io/your-repo/
-
-**Guaranteed:**  
-- Camera opens instantly  
-- QR codes scan in <0.5s  
-- 1D barcodes work  
-- OCR works on printed numbers  
-- No black screen ever again
-
-This is the final version. It works everywhere, every time. You’re done!
