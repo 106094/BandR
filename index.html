@@ -1,172 +1,206 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>QR / Barcode + OCR Scanner</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>OCR Scanner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sonner@1.5.0/dist/sonner.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sonner@1.5.0/dist/sonner.min.css" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <style>
-    body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:#111; color:#fff; text-align:center; padding:30px 20px; }
-    h1 { margin-bottom:30px; }
-    button { padding:18px 40px; font-size:20px; background:#0f9; color:#000; border:none; border-radius:16px; font-weight:bold; }
-    input { margin-top:20px; padding:14px; width:90%; max-width:460px; font-size:18px; text-align:center; font-family:monospace; border-radius:10px; border:none; }
-
-    #scannerModal {
-      display:none; position:fixed; inset:0; background:#000; z-index:9999;
-      flex-direction:column; justify-content:center; align-items:center;
-    }
-    .scanner-box {
-      position:relative; width:90vw; max-width:460px; height:360px;
-      border:5px solid #0f9; border-radius:20px; overflow:hidden; background:#000;
-      box-shadow:0 0 50px rgba(0,255,150,0.6);
-    }
-    #video { width:100%; height:100%; object-fit:cover; background:#000; }
-    .corner { position:absolute; width:60px; height:60px; border:7px solid #0f9; pointer-events:none; }
-    .corner:nth-child(1){ top:20px; left:20px; border-right:none; border-bottom:none; }
-    .corner:nth-child(2){ top:20px; right:20px; border-left:none; border-bottom:none; }
-    .corner:nth-child(3){ bottom:20px; left:20px; border-right:none; border-top:none; }
-    .corner:nth-child(4){ bottom:20px; right:20px; border-left:none; border-top:none; }
-
-    #status { margin:20px 0; font-size:19px; color:#0ff; min-height:30px; }
-    #closeBtn { padding:14px 36px; background:#333; border:3px solid #0f9; color:#0f9; font-size:18px; border-radius:14px; }
+    #cameraView, #homeView { transition: all 0.4s ease; }
+    #box { border: 3px solid #a78bfa; background: rgba(167,139,250,0.15); pointer-events: none; }
+    .corner { position: absolute; width: 44px; height: 44px; border: 6px solid #a78bfa; }
+    .tl { top: -6px; left: -6px; border-right:none; border-bottom:none; }
+    .tr { top: -6px; right: -6px; border-left:none; border-bottom:none; }
+    .bl { bottom: -6px; left: -6px; border-right:none; border-top:none; }
+    .br { bottom: -6px; right: -6px; border-left:none; border-top:none; }
+    @keyframes scan { 0% { top: -20% } 100% { top: 120% } }
+    #scanline { position: absolute; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, transparent, #a78bfa, transparent); box-shadow: 0 0 20px #a78bfa; opacity: 0; }
   </style>
 </head>
-<body>
+<body class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 text-white">
 
-
-
-
-  <h1>QR / Barcode + OCR Scanner</h1>
-  <button onclick="openScanner()">Start Camera</button>
-  <input id="result" placeholder="Result will appear here" readonly>
-
-  <!-- Scanner Modal -->
-  <div id="scannerModal">
-    <div class="scanner-box">
-      <video id="video" playsinline muted autoplay></video>
-      <div class="corner"></div><div class="corner"></div><div class="corner"></div><div class="corner"></div>
+  <!-- Page 1: Home -->
+  <div id="homeView" class="flex flex-col items-center justify-center min-h-screen px-6">
+    <div class="w-full max-w-2xl">
+      <h1 class="text-4xl font-bold text-center mb-8">OCR Scanner</h1>
+      <textarea id="resultBox" placeholder="Result will appear here..." class="w-full h-48 p-5 rounded-2xl bg-slate-800/70 border border-slate-700 text-lg font-mono resize-none focus:outline-none focus:border-violet-500"></textarea>
+      <button id="startBtn" class="mt-8 w-full h-16 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 text-xl font-bold flex items-center justify-center gap-3">
+        <i data-lucide="camera" class="w-8 h-8"></i> Start OCR Scanner
+      </button>
     </div>
-    <div id="status">Opening camera...</div>
-    <button id="closeBtn" onclick="closeScanner()">Close</button>
   </div>
 
-  <script type="module">
-      /** ====== BOOT ====== */
-if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
-  document.body.innerHTML = '<div class="shell"><div class="card"><h2>HTTPS required</h2><p>Camera access needs HTTPS.</p></div></div>';
-}
-    import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
+  <!-- Page 2: Camera -->
+  <div id="cameraView" class="fixed inset-0 hidden flex flex-col">
+    <video id="video" playsinline muted autoplay class="absolute inset-0 w-full h-full object-cover"></video>
+    <canvas id="snapshot" class="hidden"></canvas>
+    <canvas id="crop" class="hidden"></canvas>
 
-    const modal   = document.getElementById('scannerModal');
-    const video   = document.getElementById('video');
-    const status  = document.getElementById('status');
-    const result  = document.getElementById('result');
-    let codeReader = null;
-    let stream = null;
-    let ocrDone = false;
+    <div id="overlay" class="absolute inset-0 cursor-crosshair touch-action-none">
+      <div id="mask" class="absolute inset-0 pointer-events-none"></div>
+      <div id="box" class="hidden">
+        <div class="corner tl"></div><div class="corner tr"></div>
+        <div class="corner bl"></div><div class="corner br"></div>
+        <div id="scanline"></div>
+      </div>
+    </div>
 
-    const hints = new Map();
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE, BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.ITF, BarcodeFormat.DATA_MATRIX]);
-    hints.set(DecodeHintType.TRY_HARDER, true);
+    <div class="absolute top-4 left-4 right-4 flex justify-between z-20">
+      <button id="stopBtn" class="p-4 bg-black/70 backdrop-blur rounded-full">
+        <i data-lucide="x" class="w-8 h-8"></i>
+      </button>
+      <div class="bg-black/70 backdrop-blur px-6 py-3 rounded-full">
+        <p class="font-medium">Draw rectangle → Capture</p>
+      </div>
+      <div></div>
+    </div>
 
-    window.openScanner = async () => {
-      result.value = '';
-      ocrDone = false;
-      modal.style.display = 'flex';
-      status.textContent = 'Requesting camera permission...';
+    <div class="absolute bottom-8 left-4 right-4 flex gap-4 z-20" id="actions" style="display:none">
+      <button id="resetBtn" class="flex-1 h-16 rounded-2xl bg-slate-800/90 backdrop-blur border border-slate-600 flex items-center justify-center gap-3 text-lg font-medium">
+        <i data-lucide="rotate-ccw" class="w-6 h-6"></i> Reset
+      </button>
+      <button id="captureBtn" class="flex-1 h-16 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 flex items-center justify-center gap-3 text-xl font-bold">
+        <i data-lucide="camera" class="w-7 h-7"></i> Capture & Extract
+      </button>
+    </div>
+  </div>
 
-      try {
-        // Critical: force video visible BEFORE attaching stream
-        video.style.opacity = '0';
-        modal.style.display = 'flex';
+  <script>
+    lucide.createIcons();
+    const homeView = document.getElementById('homeView');
+    const cameraView = document.getElementById('cameraView');
+    const video = document.getElementById('video');
+    const overlay = document.getElementById('overlay');
+    const box = document.getElementById('box');
+    const scanline = document.getElementById('scanline');
+    const mask = document.getElementById('mask');
+    const resultBox = document.getElementById('resultBox');
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
-        });
+    let stream = null, drawing = false, sx = 0, sy = 0, ex = 0, ey = 0;
 
-        video.srcObject = stream;
-        
-        // Wait for video to actually start playing
-        await new Promise(resolve => {
-          video.onloadedmetadata = () => {
-            video.play().then(() => {
-              video.style.opacity = '1';
-              status.textContent = 'Scan QR or barcode';
-              resolve();
-            });
-          };
-        });
-
-        codeReader = new BrowserMultiFormatReader(hints);
-        codeReader.decodeFromVideoElement(video, (res) => {
-          if (res) success(res.getText());
-        });
-
-        // OCR fallback after 8 seconds
-        setTimeout(() => {
-          if (!result.value && !ocrDone) {
-            ocrDone = true;
-            status.textContent = 'No code found → OCR...';
-            runOCR();
-          }
-        }, 8000);
-
-      } catch (err) {
-        status.innerHTML = `<span style="color:#f66">Camera failed: ${err.message}</span>`;
-        console.error(err);
-      }
+    document.getElementById('startBtn').onclick = () => {
+      homeView.classList.add('hidden');
+      cameraView.classList.remove('hidden');
+      startCamera();
     };
 
-    async function runOCR() {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      canvas.getContext('2d').drawImage(video, 0, 0);
+    document.getElementById('stopBtn').onclick = () => {
+      stopCamera();
+      cameraView.classList.add('hidden');
+      homeView.classList.remove('hidden');
+    };
 
-      // Load Tesseract only when needed
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 } }
+      }).then(s => {
+        stream = s;
+        video.srcObject = stream;
+      });
+    }
+
+    function stopCamera() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    }
+
+    overlay.addEventListener('pointerdown', e => {
+      const r = overlay.getBoundingClientRect();
+      sx = ex = e.clientX - r.left;
+      sy = ey = e.clientY - r.top;
+      drawing = true;
+      box.classList.remove('hidden');
+      document.getElementById('actions').style.display = 'none';
+    });
+
+    overlay.addEventListener('pointermove', e => {
+      if (!drawing) return;
+      const r = overlay.getBoundingClientRect();
+      ex = e.clientX - r.left;
+      ey = e.clientY - r.top;
+      const x = Math.min(sx, ex), y = Math.min(sy, ey);
+      const w = Math.abs(ex - sx), h = Math.abs(ey - sy);
+      box.style.left = x + 'px'; box.style.top = y + 'px';
+      box.style.width = w + 'px'; box.style.height = h + 'px';
+      updateMask();
+    });
+
+    function updateMask() {
+      const r = overlay.getBoundingClientRect();
+      const x1 = Math.min(sx, ex), y1 = Math.min(sy, ey);
+      const x2 = Math.max(sx, ex), y2 = Math.max(sy, ey);
+      mask.innerHTML = `
+        <div style="top:0;left:0;right:0;height:${y1}px;background:rgba(0,0,0,0.8)"></div>
+        <div style="top:${y1}px;bottom:${r.height-y2}px;left:0;width:${x1}px;background:rgba(0,0,0,0.8)"></div>
+        <div style="top:${y1}px;bottom:${r.height-y2}px;right:0;width:${r.width-x2}px;background:rgba(0,0,0,0.8)"></div>
+        <div style="bottom:0;left:0;right:0;height:${r.height-y2}px;background:rgba(0,0,0,0.8)"></div>
+      `;
+    }
+
+    overlay.addEventListener('pointerup', () => {
+      if (!drawing) return;
+      drawing = false;
+      if (Math.abs(ex-sx) > 80 && Math.abs(ey-sy) > 80) {
+        document.getElementById('actions').style.display = 'flex';
+      }
+    });
+
+    document.getElementById('resetBtn').onclick = () => {
+      box.classList.add('hidden');
+      mask.innerHTML = '';
+      document.getElementById('actions').style.display = 'none';
+    };
+
+    document.getElementById('captureBtn').onclick = async () => {
+      scanline.style.animation = 'scan 1.6s ease-in-out infinite';
+      scanline.style.opacity = '1';
+
+      const snapshot = document.getElementById('snapshot');
+      snapshot.width = video.videoWidth;
+      snapshot.height = video.videoHeight;
+      snapshot.getContext('2d').drawImage(video, 0, 0);
+
+      const r = overlay.getBoundingClientRect();
+      const scaleX = video.videoWidth / r.width;
+      const scaleY = video.videoHeight / r.height;
+
+      const crop = document.getElementById('crop');
+      const x = Math.min(sx, ex) * scaleX;
+      const y = Math.min(sy, ey) * scaleY;
+      const w = Math.abs(ex - sx) * scaleX;
+      const h = Math.abs(ey - sy) * scaleY;
+
+      crop.width = w; crop.height = h;
+      crop.getContext('2d').drawImage(snapshot, x, y, w, h, 0, 0, w, h);
+
       if (!window.Tesseract) {
-        await new Promise(r => {
+        await new Promise(res => {
           const s = document.createElement('script');
           s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-          s.onload = r;
+          s.onload = res;
           document.head.appendChild(s);
         });
       }
 
       const worker = await Tesseract.createWorker();
-      await worker.load();
-      await worker.loadLanguage('eng');
-      await worker.initialize('eng');
-      await worker.setParameters({
-        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-',
-        tessedit_pageseg_mode: '7'
-      });
-
-      const { data: { text } } = await worker.recognize(canvas);
+      await worker.load(); await worker.loadLanguage('eng'); await worker.initialize('eng');
+      const { data: { text } } = await worker.recognize(crop);
       await worker.terminate();
 
-      const clean = text.trim().replace(/[^A-Z0-9-]/gi, '');
-      if (clean.length >= 6) success(clean);
-      else status.textContent = 'Nothing readable — try again';
-    }
+      resultBox.value = text.trim() || 'No text found';
+      sonner.success('Done! Returning...');
 
-    function success(text) {
-      result.value = text;
-      status.textContent = 'Success!';
-      setTimeout(closeScanner, 1400);
-    }
-
-    window.closeScanner = () => {
-      if (codeReader) { codeReader.reset(); codeReader = null; }
-      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-      video.srcObject = null;
-      modal.style.display = 'none';
+      scanline.style.animation = ''; scanline.style.opacity = '0';
+      setTimeout(() => document.getElementById('stopBtn').click(), 1200);
     };
+
+    // HTTPS guard (only for real deployment)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      alert('This only works on HTTPS or localhost');
+    }
   </script>
 </body>
 </html>
