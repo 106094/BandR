@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>OCR Crop Tool</title>
+<title>OCR Camera Tool</title>
 
 <style>
     body {
@@ -23,40 +23,41 @@
         border: none;
         border-radius: 10px;
         font-size: 18px;
-        background: #00c3ff;
+        background: #00b3ff;
         color: #fff;
     }
 
-    #video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        position: fixed;
-        top: 0; left: 0;
+    /* ---------- CONSTRAINED CAMERA BOX ---------- */
+    #camBox {
+        position: relative;
+        width: 100vw;
+        max-width: 600px;
+        margin: 20px auto;
+        background: black;
+        overflow: hidden;
     }
 
-    #overlay {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100vw;
-        height: 100vh;
+    #video, #overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
         touch-action: none;
     }
 
-    .toolbar {
-        position: fixed;
-        top: 10px;
-        width: 100%;
-        text-align: center;
-        z-index: 20;
-    }
-
     #resultText {
-        margin-top: 30px;
         font-size: 20px;
-        padding: 20px;
+        margin-top: 20px;
         color: #0ff;
         white-space: pre-wrap;
+    }
+
+    #capPreview {
+        max-width: 90%;
+        margin-top: 15px;
+        border: 2px solid #444;
     }
 </style>
 </head>
@@ -65,32 +66,30 @@
 <!-- ====================== PAGE 1 ====================== -->
 <div id="page1" class="page active">
     <h2>OCR Camera Tool</h2>
+
     <button id="btnStart">Start Camera</button>
 
     <div id="resultText">(Result will appear here)</div>
 
-    <!-- ADD THIS: preview of the captured image -->
-    <img id="capPreview" style="max-width:90%; margin-top:20px; border:2px solid #555;">
+    <img id="capPreview" />
 </div>
 
-
-<!-- ====================== PAGE 2 (Camera) ====================== -->
+<!-- ====================== PAGE 2 ====================== -->
 <div id="page2" class="page">
-    <div class="toolbar">
-        <button id="btnClose">Close</button>
+    <button id="btnClose">Close</button>
+
+    <div id="camBox">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="overlay"></canvas>
     </div>
 
-    <video id="video" autoplay playsinline></video>
-    <canvas id="overlay"></canvas>
+    <p>Draw a rectangle to capture</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <script>
 // ========== PAGE CONTROL ==========
-const page1 = document.getElementById("page1");
-const page2 = document.getElementById("page2");
-
 function goPage1() {
     page1.classList.add("active");
     page2.classList.remove("active");
@@ -99,6 +98,9 @@ function goPage2() {
     page2.classList.add("active");
     page1.classList.remove("active");
 }
+
+const page1 = document.getElementById("page1");
+const page2 = document.getElementById("page2");
 
 document.getElementById("btnStart").onclick = startCamera;
 document.getElementById("btnClose").onclick = stopCamera;
@@ -109,6 +111,7 @@ let stream;
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
 const ctx = overlay.getContext("2d");
+const camBox = document.getElementById("camBox");
 
 async function startCamera() {
     goPage2();
@@ -120,8 +123,19 @@ async function startCamera() {
     video.srcObject = stream;
 
     video.onloadedmetadata = () => {
-        overlay.width = video.videoWidth;
-        overlay.height = video.videoHeight;
+        const W = video.videoWidth;
+        const H = video.videoHeight;
+
+        const ratio = W / H;
+
+        // Constrain camera box – maintain exact aspect ratio
+        camBox.style.width = "100vw";
+        camBox.style.maxWidth = "600px";
+        camBox.style.height = (camBox.clientWidth / ratio) + "px";
+
+        // Set canvas 1:1 with video feed resolution
+        overlay.width = W;
+        overlay.height = H;
     };
 }
 
@@ -141,19 +155,12 @@ let startX, startY, endX, endY;
 function getPos(e) {
     const rect = overlay.getBoundingClientRect();
 
-    let clientX, clientY;
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    if (e.touches) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-    } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-    }
-
-    // Convert CSS pixels → video pixels
-    const scaleX = video.videoWidth / rect.width;
-    const scaleY = video.videoHeight / rect.height;
+    // CSS px → video px mapping
+    const scaleX = overlay.width / rect.width;
+    const scaleY = overlay.height / rect.height;
 
     return {
         x: (clientX - rect.left) * scaleX,
@@ -211,7 +218,6 @@ overlay.addEventListener("touchend", endDraw);
 
 // ========== SNAPSHOT + OCR ==========
 async function snapshotAndOCR() {
-    // Normalize coordinates
     const x1 = startX, y1 = startY;
     const x2 = endX, y2 = endY;
 
@@ -222,31 +228,20 @@ async function snapshotAndOCR() {
 
     if (sw < 10 || sh < 10) return;
 
-    // Larger snapshot for better OCR
-    const scale = 2;
     const snap = document.createElement("canvas");
-    snap.width = sw * scale;
-    snap.height = sh * scale;
+    snap.width = sw;
+    snap.height = sh;
 
     const sctx = snap.getContext("2d");
-    sctx.imageSmoothingEnabled = false;
+    sctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-    sctx.drawImage(
-        video,
-        sx, sy, sw, sh,
-        0, 0, snap.width, snap.height
-    );
+    // Show captured image on Page 1
+    document.getElementById("capPreview").src = snap.toDataURL("image/png");
 
-    // Turn snapshot into an image preview
-    const dataURL = snap.toDataURL("image/png");
-    document.getElementById("capPreview").src = dataURL;
-
-    // Close camera and go back
     stopCamera();
 
     document.getElementById("resultText").textContent = "OCR running...";
 
-    // OCR with numeric whitelist
     const res = await Tesseract.recognize(snap, "eng", {
         tessedit_char_whitelist: "0123456789",
     });
@@ -256,8 +251,6 @@ async function snapshotAndOCR() {
 
     document.getElementById("resultText").textContent = txt;
 }
-
-
 </script>
 
 </body>
