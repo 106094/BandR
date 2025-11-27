@@ -1,206 +1,229 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>OCR Scanner</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sonner@1.5.0/dist/sonner.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sonner@1.5.0/dist/sonner.min.css" />
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  <style>
-    #cameraView, #homeView { transition: all 0.4s ease; }
-    #box { border: 3px solid #a78bfa; background: rgba(167,139,250,0.15); pointer-events: none; }
-    .corner { position: absolute; width: 44px; height: 44px; border: 6px solid #a78bfa; }
-    .tl { top: -6px; left: -6px; border-right:none; border-bottom:none; }
-    .tr { top: -6px; right: -6px; border-left:none; border-bottom:none; }
-    .bl { bottom: -6px; left: -6px; border-right:none; border-top:none; }
-    .br { bottom: -6px; right: -6px; border-left:none; border-top:none; }
-    @keyframes scan { 0% { top: -20% } 100% { top: 120% } }
-    #scanline { position: absolute; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, transparent, #a78bfa, transparent); box-shadow: 0 0 20px #a78bfa; opacity: 0; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OCR Camera Crop Tool</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #111;
+        font-family: system-ui;
+        color: white;
+        user-select: none;
+        overflow: hidden;
+        touch-action: none;
+    }
+
+    #video {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+    }
+
+    #overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+    }
+
+    .top-bar {
+        position: fixed;
+        top: 0;
+        width: 100%;
+        padding: 10px;
+        text-align: center;
+        background: rgba(0,0,0,0.4);
+        backdrop-filter: blur(8px);
+    }
+
+    button {
+        padding: 10px 16px;
+        margin: 5px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        background: #00b3ff;
+        color: #fff;
+        cursor: pointer;
+    }
+
+    button:active {
+        opacity: 0.7;
+    }
+
+    #ocrResult {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        padding: 15px;
+        background: rgba(0,0,0,0.7);
+        font-size: 18px;
+        text-align: center;
+    }
+
+</style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 text-white">
+<body>
 
-  <!-- Page 1: Home -->
-  <div id="homeView" class="flex flex-col items-center justify-center min-h-screen px-6">
-    <div class="w-full max-w-2xl">
-      <h1 class="text-4xl font-bold text-center mb-8">OCR Scanner</h1>
-      <textarea id="resultBox" placeholder="Result will appear here..." class="w-full h-48 p-5 rounded-2xl bg-slate-800/70 border border-slate-700 text-lg font-mono resize-none focus:outline-none focus:border-violet-500"></textarea>
-      <button id="startBtn" class="mt-8 w-full h-16 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 text-xl font-bold flex items-center justify-center gap-3">
-        <i data-lucide="camera" class="w-8 h-8"></i> Start OCR Scanner
-      </button>
-    </div>
-  </div>
+<div class="top-bar">
+    <button id="btnTorch">🔦 Torch</button>
+    <button id="btnClear">Clear</button>
+</div>
 
-  <!-- Page 2: Camera -->
-  <div id="cameraView" class="fixed inset-0 hidden flex flex-col">
-    <video id="video" playsinline muted autoplay class="absolute inset-0 w-full h-full object-cover"></video>
-    <canvas id="snapshot" class="hidden"></canvas>
-    <canvas id="crop" class="hidden"></canvas>
+<video id="video" autoplay playsinline></video>
+<canvas id="overlay"></canvas>
 
-    <div id="overlay" class="absolute inset-0 cursor-crosshair touch-action-none">
-      <div id="mask" class="absolute inset-0 pointer-events-none"></div>
-      <div id="box" class="hidden">
-        <div class="corner tl"></div><div class="corner tr"></div>
-        <div class="corner bl"></div><div class="corner br"></div>
-        <div id="scanline"></div>
-      </div>
-    </div>
+<div id="ocrResult">Draw a rectangle around text…</div>
 
-    <div class="absolute top-4 left-4 right-4 flex justify-between z-20">
-      <button id="stopBtn" class="p-4 bg-black/70 backdrop-blur rounded-full">
-        <i data-lucide="x" class="w-8 h-8"></i>
-      </button>
-      <div class="bg-black/70 backdrop-blur px-6 py-3 rounded-full">
-        <p class="font-medium">Draw rectangle → Capture</p>
-      </div>
-      <div></div>
-    </div>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-    <div class="absolute bottom-8 left-4 right-4 flex gap-4 z-20" id="actions" style="display:none">
-      <button id="resetBtn" class="flex-1 h-16 rounded-2xl bg-slate-800/90 backdrop-blur border border-slate-600 flex items-center justify-center gap-3 text-lg font-medium">
-        <i data-lucide="rotate-ccw" class="w-6 h-6"></i> Reset
-      </button>
-      <button id="captureBtn" class="flex-1 h-16 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 flex items-center justify-center gap-3 text-xl font-bold">
-        <i data-lucide="camera" class="w-7 h-7"></i> Capture & Extract
-      </button>
-    </div>
-  </div>
+<script>
+const video = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const ctx = overlay.getContext("2d");
+const ocrOutput = document.getElementById("ocrResult");
 
-  <script>
-    lucide.createIcons();
-    const homeView = document.getElementById('homeView');
-    const cameraView = document.getElementById('cameraView');
-    const video = document.getElementById('video');
-    const overlay = document.getElementById('overlay');
-    const box = document.getElementById('box');
-    const scanline = document.getElementById('scanline');
-    const mask = document.getElementById('mask');
-    const resultBox = document.getElementById('resultBox');
+let stream;
+let track;
+let torchEnabled = false;
 
-    let stream = null, drawing = false, sx = 0, sy = 0, ex = 0, ey = 0;
+let drawing = false;
+let startX = 0, startY = 0, endX = 0, endY = 0;
 
-    document.getElementById('startBtn').onclick = () => {
-      homeView.classList.add('hidden');
-      cameraView.classList.remove('hidden');
-      startCamera();
-    };
-
-    document.getElementById('stopBtn').onclick = () => {
-      stopCamera();
-      cameraView.classList.add('hidden');
-      homeView.classList.remove('hidden');
-    };
-
-    function startCamera() {
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1920 } }
-      }).then(s => {
-        stream = s;
-        video.srcObject = stream;
-      });
-    }
-
-    function stopCamera() {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      video.srcObject = null;
-    }
-
-    overlay.addEventListener('pointerdown', e => {
-      const r = overlay.getBoundingClientRect();
-      sx = ex = e.clientX - r.left;
-      sy = ey = e.clientY - r.top;
-      drawing = true;
-      box.classList.remove('hidden');
-      document.getElementById('actions').style.display = 'none';
+// ========== CAMERA SETUP ==========
+async function startCamera() {
+    stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
     });
 
-    overlay.addEventListener('pointermove', e => {
-      if (!drawing) return;
-      const r = overlay.getBoundingClientRect();
-      ex = e.clientX - r.left;
-      ey = e.clientY - r.top;
-      const x = Math.min(sx, ex), y = Math.min(sy, ey);
-      const w = Math.abs(ex - sx), h = Math.abs(ey - sy);
-      box.style.left = x + 'px'; box.style.top = y + 'px';
-      box.style.width = w + 'px'; box.style.height = h + 'px';
-      updateMask();
+    video.srcObject = stream;
+
+    track = stream.getVideoTracks()[0];
+
+    video.onloadedmetadata = () => {
+        overlay.width = video.videoWidth;
+        overlay.height = video.videoHeight;
+    };
+}
+
+startCamera();
+
+// ========== TORCH ==========
+document.getElementById("btnTorch").addEventListener("click", () => {
+    if (!track) return;
+
+    torchEnabled = !torchEnabled;
+    track.applyConstraints({
+        advanced: [{ torch: torchEnabled }]
+    }).catch(e => console.log("Torch error:", e));
+});
+
+// ========== CLEAR ==========
+document.getElementById("btnClear").addEventListener("click", () => {
+    ctx.clearRect(0,0,overlay.width,overlay.height);
+    ocrOutput.textContent = "Draw a rectangle around text…";
+});
+
+// ========== POSITION HELPER ==========
+function getPos(e) {
+    const rect = overlay.getBoundingClientRect();
+    if (e.touches) {
+        return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+        };
+    }
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+// ========== MASK DRAW ==========
+function redrawMask() {
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    // Darken outside
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(0, 0, overlay.width, overlay.height);
+
+    const w = endX - startX;
+    const h = endY - startY;
+
+    // Clear inside box
+    ctx.clearRect(startX, startY, w, h);
+
+    // Border
+    ctx.strokeStyle = "yellow";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(startX, startY, w, h);
+}
+
+// ========== DRAW EVENTS ==========
+function startDraw(e) {
+    drawing = true;
+    const p = getPos(e);
+    startX = endX = p.x;
+    startY = endY = p.y;
+    redrawMask();
+}
+
+function moveDraw(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    endX = p.x;
+    endY = p.y;
+    redrawMask();
+}
+
+function endDraw() {
+    if (!drawing) return;
+    drawing = false;
+    redrawMask();
+    captureAndOCR();
+}
+
+overlay.addEventListener("mousedown", startDraw);
+overlay.addEventListener("mousemove", moveDraw);
+overlay.addEventListener("mouseup", endDraw);
+
+overlay.addEventListener("touchstart", startDraw);
+overlay.addEventListener("touchmove", moveDraw);
+overlay.addEventListener("touchend", endDraw);
+
+// ========== CAPTURE & OCR ==========
+async function captureAndOCR() {
+    let w = endX - startX;
+    let h = endY - startY;
+
+    if (w < 10 || h < 10) return;
+
+    let output = document.createElement("canvas");
+    output.width = Math.abs(w);
+    output.height = Math.abs(h);
+    let octx = output.getContext("2d");
+
+    octx.drawImage(video, startX, startY, w, h, 0, 0, output.width, output.height);
+
+    ocrOutput.textContent = "Processing OCR…";
+
+    // Tesseract OCR
+    const res = await Tesseract.recognize(output, 'eng', {
+        logger: () => {}
     });
 
-    function updateMask() {
-      const r = overlay.getBoundingClientRect();
-      const x1 = Math.min(sx, ex), y1 = Math.min(sy, ey);
-      const x2 = Math.max(sx, ex), y2 = Math.max(sy, ey);
-      mask.innerHTML = `
-        <div style="top:0;left:0;right:0;height:${y1}px;background:rgba(0,0,0,0.8)"></div>
-        <div style="top:${y1}px;bottom:${r.height-y2}px;left:0;width:${x1}px;background:rgba(0,0,0,0.8)"></div>
-        <div style="top:${y1}px;bottom:${r.height-y2}px;right:0;width:${r.width-x2}px;background:rgba(0,0,0,0.8)"></div>
-        <div style="bottom:0;left:0;right:0;height:${r.height-y2}px;background:rgba(0,0,0,0.8)"></div>
-      `;
-    }
+    const text = res.data.text.trim();
 
-    overlay.addEventListener('pointerup', () => {
-      if (!drawing) return;
-      drawing = false;
-      if (Math.abs(ex-sx) > 80 && Math.abs(ey-sy) > 80) {
-        document.getElementById('actions').style.display = 'flex';
-      }
-    });
+    ocrOutput.textContent = text || "(No readable text)";
+}
+</script>
 
-    document.getElementById('resetBtn').onclick = () => {
-      box.classList.add('hidden');
-      mask.innerHTML = '';
-      document.getElementById('actions').style.display = 'none';
-    };
-
-    document.getElementById('captureBtn').onclick = async () => {
-      scanline.style.animation = 'scan 1.6s ease-in-out infinite';
-      scanline.style.opacity = '1';
-
-      const snapshot = document.getElementById('snapshot');
-      snapshot.width = video.videoWidth;
-      snapshot.height = video.videoHeight;
-      snapshot.getContext('2d').drawImage(video, 0, 0);
-
-      const r = overlay.getBoundingClientRect();
-      const scaleX = video.videoWidth / r.width;
-      const scaleY = video.videoHeight / r.height;
-
-      const crop = document.getElementById('crop');
-      const x = Math.min(sx, ex) * scaleX;
-      const y = Math.min(sy, ey) * scaleY;
-      const w = Math.abs(ex - sx) * scaleX;
-      const h = Math.abs(ey - sy) * scaleY;
-
-      crop.width = w; crop.height = h;
-      crop.getContext('2d').drawImage(snapshot, x, y, w, h, 0, 0, w, h);
-
-      if (!window.Tesseract) {
-        await new Promise(res => {
-          const s = document.createElement('script');
-          s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-          s.onload = res;
-          document.head.appendChild(s);
-        });
-      }
-
-      const worker = await Tesseract.createWorker();
-      await worker.load(); await worker.loadLanguage('eng'); await worker.initialize('eng');
-      const { data: { text } } = await worker.recognize(crop);
-      await worker.terminate();
-
-      resultBox.value = text.trim() || 'No text found';
-      sonner.success('Done! Returning...');
-
-      scanline.style.animation = ''; scanline.style.opacity = '0';
-      setTimeout(() => document.getElementById('stopBtn').click(), 1200);
-    };
-
-    // HTTPS guard (only for real deployment)
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-      alert('This only works on HTTPS or localhost');
-    }
-  </script>
 </body>
 </html>
