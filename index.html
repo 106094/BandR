@@ -2,53 +2,113 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Barcode + OCR Scanner</title>
   <style>
-    body { margin:0; font-family:system-ui,sans-serif; background:#111; color:#fff; min-height:100vh; display:flex; align-items:center; justify-content:center; }
-    .shell { text-align:center; padding:2rem; }
-    .card { background:#222; padding:2rem; border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.5); max-width:90%; }
-    button { margin-top:1rem; padding:1rem 2rem; font-size:1.2rem; background:#0f0; color:#000; border:none; border-radius:12px; cursor:pointer; }
-    video { max-width:100%; border:4px solid #0f0; border-radius:12px; margin:1rem 0; background:#000; }
+    body { margin:0; font-family:system-ui; background:#000; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
+    video { width:90vw; max-width:500px; height:auto; background:#000; border:4px solid #0f0; border-radius:12px; margin:20px 0; }
+    button { padding:16px 32px; font-size:18px; background:#0f0; color:#000; border:none; border-radius:12px; font-weight:bold; }
+    #status { margin:10px; font-size:1.1em; }
+    .warning { background:#400; padding:15px; border-radius:8px; margin:20px; max-width:90%; }
   </style>
 </head>
-
 <body>
 
-  <!-- HTTPS GUARD — MUST BE THE VERY FIRST THING EXECUTED -->
+  <!-- HTTPS guard -->
   <script>
-    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-      document.body.innerHTML = `
-        <div class="shell">
-          <div class="card">
-            <h2>HTTPS Required</h2>
-            <p>Camera access only works on secure pages (HTTPS).</p>
-            <p><strong>Works on:</strong><br>
-               • GitHub Pages<br>
-               • Vercel / Netlify<br>
-               • Any proper HTTPS server</p>
-            <small>Current URL: ${location.href}</small>
-          </div>
-        </div>`;
-      throw new Error("HTTPS required"); // stops everything else
+    if (location.protocol !== 'https:' && !['localhost','127.0.0.1','0.0.0.0'].includes(location.hostname)) {
+      document.body.innerHTML = `<div class="warning"><h2>HTTPS Required</h2><p>Camera only works on HTTPS or localhost.<br><br>Deploy this file on GitHub Pages!</p></div>`;
+      throw new Error("No HTTPS");
     }
   </script>
 
-  <!-- Your real app starts here -->
-  <div class="shell">
-    <div class="card">
-      <h1>Barcode + OCR Scanner</h1>
-      <button onclick="openScanner('result')">Start Scanning</button>
-      <p>Result: <input id="result" size="40" readonly style="font-family:monospace; font-size:1.2em;"></p>
-      <video id="video" playsinline muted></video>
-      <div id="status"></div>
-    </div>
-  </div>
+  <h1>Barcode + OCR Scanner</h1>
+  <button id="startBtn">Start Camera</button>
+  <p><input id="result" placeholder="Result appears here" readonly style="padding:10px; font-size:18px; width:90%; max-width:500px;"></p>
+  <video id="video" playsinline muted></video>
+  <div id="status">Press button to start</div>
 
-  <!-- Rest of your scanner code (ZXing + Tesseract) -->
   <script type="module">
-    // ... (paste the full working scanner code from my previous message here)
-    // It will only run if HTTPS check passed
+    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm';
+
+    const video = document.getElementById('video');
+    const status = document.getElementById('status');
+    const resultInput = document.getElementById('result');
+    let codeReader = null;
+    let stream = null;
+
+    document.getElementById('startBtn').onclick = async () => {
+      status.textContent = 'Requesting camera...';
+      resultInput.value = '';
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+
+        video.srcObject = stream;
+        video.style.display = 'block';
+        await video.play();
+
+        status.textContent = 'Scanning barcode... (point at code)';
+
+        codeReader = new BrowserMultiFormatReader();
+        
+        codeReader.decodeFromVideoElement(video, (result, error) => {
+          if (result) {
+            resultInput.value = result.getText();
+            status.textContent = 'Success!';
+            new Audio('https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-complete-level-205.mp3').play().catch(()=>{});
+            setTimeout(() => { if(stream) stream.getTracks().forEach(t=>t.stop()); video.style.display='none'; }, 1500);
+          }
+          if (error && !error.message.includes('No code')) {
+            console.warn(error);
+          }
+        });
+
+        // OCR fallback after 8 seconds
+        setTimeout(() => {
+          if (!resultInput.value) {
+            status.textContent = 'No barcode → trying OCR...';
+            runOCR();
+          }
+        }, 8000);
+
+      } catch (err) {
+        status.innerHTML = `<span style="color:#f66">Camera error: ${err.message}</span>`;
+        console.error(err);
+      }
+    };
+
+    async function runOCR() {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+
+      const worker = await Tesseract.createWorker();
+      await worker.load();
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
+      await worker.setParameters({
+        tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-',
+        tessedit_pageseg_mode: '7'
+      });
+
+      const result = await worker.recognize(canvas);
+      await worker.terminate();
+
+      const text = result.data.text.trim().replace(/\s+/g, '');
+      if (text.length >= 6) {
+        resultInput.value = text;
+        status.textContent = 'OCR Success!';
+      } else {
+        status.textContent = 'Nothing readable';
+      }
+    }
+
+    // Load Tesseract only when needed (smaller initial payload)
+    window.Tesseract = window.Tesseract || (await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js')).Tesseract;
   </script>
 </body>
 </html>
