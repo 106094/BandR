@@ -206,30 +206,51 @@ overlay.addEventListener("touchend", endDraw);
 
 // ========== SNAPSHOT + OCR ==========
 async function snapshotAndOCR() {
-    const w = endX - startX;
-    const h = endY - startY;
+    // Normalize rectangle so it works no matter how you drag
+    const x1 = startX;
+    const y1 = startY;
+    const x2 = endX;
+    const y2 = endY;
 
-    if (w < 10 || h < 10) return;
+    const sx = Math.min(x1, x2);
+    const sy = Math.min(y1, y2);
+    const sw = Math.abs(x2 - x1);
+    const sh = Math.abs(y2 - y1);
 
-    // Create snapshot canvas
-    let snap = document.createElement("canvas");
-    snap.width = Math.abs(w);
-    snap.height = Math.abs(h);
-    let sctx = snap.getContext("2d");
+    if (sw < 10 || sh < 10) return; // ignore tiny boxes
 
-    sctx.drawImage(video, startX, startY, w, h, 0, 0, snap.width, snap.height);
+    // Make the snapshot a bit bigger for better OCR
+    const scale = 2;
+    const snap = document.createElement("canvas");
+    snap.width = sw * scale;
+    snap.height = sh * scale;
+    const sctx = snap.getContext("2d");
 
-    stopCamera(); // close camera and go back to page 1
+    sctx.imageSmoothingEnabled = false;
+    sctx.drawImage(
+        video,
+        sx, sy, sw, sh,       // source in video
+        0, 0, snap.width, snap.height // scaled destination
+    );
 
-    document.getElementById("resultText").textContent = "OCR running...";
+    // Stop camera & go back to first page
+    stopCamera();
 
-    const res = await Tesseract.recognize(snap, 'eng');
+    const resultLabel = document.getElementById("resultText");
+    resultLabel.textContent = "OCR running...";
 
-    let txt = res.data.text.trim();
+    // Focus OCR on digits (you can expand this whitelist later)
+    const res = await Tesseract.recognize(snap, "eng", {
+        tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-",
+        logger: m => console.log(m) // optional, for debug
+    });
+
+    let txt = (res.data.text || "").trim();
     if (!txt) txt = "(No text found)";
 
-    document.getElementById("resultText").textContent = txt;
+    resultLabel.textContent = txt;
 }
+
 </script>
 
 </body>
