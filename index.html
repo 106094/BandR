@@ -390,10 +390,14 @@ function addPropertyRow(value=''){
   row.innerHTML = `
     <div class="field col">
       <input type="text" placeholder="${ph}" value="${value.replaceAll('"','&quot;')}" data-placeholder="phPropID" oninput="maybeAutogrow(this)">
-  <div class="scan-icons">
-  <button class="scan-btn" title="Scan QRBar" aria-label="Scan Property" onclick="openScanner(null, this.previousElementSibling)">📷</button>
-   <button class="scan-btn" title="Scan OCR" aria-label="Scan Property" onclick="openOCR(null, this.previousElementSibling)">🔤</button>
-           </div>
+    <div class="scan-icons">
+     <button class="scan-btn"
+      title="Scan QRBar"
+      onclick="openScanner(null, this.closest('.field').querySelector('input'))">📷</button>    
+     <button class="scan-btn"
+      title="Scan OCR"
+      onclick="openOCR(null, this.closest('.field').querySelector('input'))">🔤</button>
+     </div>
            
     </div>
     <button class="remove" title="Remove" onclick="removeRow(this)">✕</button>
