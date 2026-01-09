@@ -35,7 +35,16 @@
     .prop-row .remove { border:0; background:transparent; color:#ef4444; font-size:20px; cursor:pointer; }
     .divider { height:1px; background:#e5e7eb; margin:8px 0 4px }
     .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 14px; border-radius:999px; font-size:14px; display:none; z-index: 999; text-align:center; min-width: 200px;}
-    
+    .ocr-preview{
+      margin-top:8px;
+      width:100%;
+      max-height:220px;
+      object-fit:contain;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      background:#fff;
+      display:none;
+    }
     /* Scanner modal */
     .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index: 1000;}
     .modal > .sheet { background:#000; width:min(720px, 96vw); border-radius:16px; overflow:hidden; }
@@ -135,8 +144,10 @@
         <div><label data-i18n="labelDate">Date</label><input id="date" type="text" readonly></div>
         <div><label data-i18n="labelName">Name</label></div>
         <div class="field">
-         <input id="name" type="text" placeholder="Scan or type a name">
-           <div class="scan-icons">
+         <input id="name" type="text" placeholder="Scan or type a name"
+           oninput="maybeHidePreview(this)">
+          <img class="ocr-preview" alt="OCR capture preview"> 
+          <div class="scan-icons">
            <button class="scan-btn" title="Scan QRBar" aria-label="Scan name" onclick="openScanner('name')">📷</button>
            <button class="scan-btn" title="Scan OCR" aria-label="Scan name" onclick="openOCR('name')">🔤</button>
            </div>
@@ -389,7 +400,8 @@ function addPropertyRow(value=''){
 
   row.innerHTML = `
     <div class="field col">
-      <input type="text" placeholder="${ph}" value="${value.replaceAll('"','&quot;')}" data-placeholder="phPropID" oninput="maybeAutogrow(this)">
+      <input type="text" placeholder="${ph}" value="${value.replaceAll('"','&quot;')}" data-placeholder="phPropID" oninput="maybeAutogrow(this); maybeHidePreview(this)">
+      <img class="ocr-preview" alt="OCR capture preview">
     <div class="scan-icons">
      <button class="scan-btn"
       title="Scan QRBar"
@@ -803,23 +815,40 @@ function endDraw(){
 }
 
 
-async function snapshotAndOCR(){
-  const overlay = document.getElementById('overlay');
-  const video = document.getElementById('video');
-
+async function snapshotAndOCR(){async function snapshotAndOCR(){
   const sx = Math.min(startX, endX);
   const sy = Math.min(startY, endY);
   const sw = Math.abs(endX - startX);
   const sh = Math.abs(endY - startY);
   if (sw < 10 || sh < 10) return;
 
+  const video = document.getElementById("video");
+
+  // 1) capture rectangle into a canvas
   const snap = document.createElement("canvas");
   snap.width = sw;
   snap.height = sh;
   snap.getContext("2d").drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
+  // 2) convert to image and save it (like original)
+  const dataUrl = snap.toDataURL("image/png");
+
+  // Save per-target so each input keeps its own capture
+  if (currentInputEl) {
+    currentInputEl.dataset.ocrPreview = dataUrl;
+
+    // show preview below that textbox
+    const field = currentInputEl.closest(".field");
+    const img = field?.querySelector(".ocr-preview");
+    if (img) {
+      img.src = dataUrl;
+      img.style.display = "block";
+    }
+  }
+
   toast("OCR running...");
 
+  // 3) OCR
   const res = await Tesseract.recognize(snap, "eng", {
     tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-_/.",
   });
@@ -827,6 +856,7 @@ async function snapshotAndOCR(){
   let txt = (res.data.text || "").trim().replace(/\s+/g,'');
   if (!txt) { toast("OCR: no text"); return; }
 
+  // 4) write result back into the same target input
   if (currentInputEl) {
     currentInputEl.value = txt;
     currentInputEl.dispatchEvent(new Event('input', { bubbles:true }));
@@ -836,6 +866,7 @@ async function snapshotAndOCR(){
   closeScanner();
   toast("OCR done");
 }
+
 
 function closeScanner(){
   document.getElementById('scannerModal').style.display='none';
@@ -850,6 +881,11 @@ function closeScanner(){
   ocrMode = false;
   clearTimeout(scanTimer);
   scanTimer = null;
+}
+function maybeHidePreview(input){
+  if (input.value.trim() !== "") return;
+  const img = input.closest(".field")?.querySelector(".ocr-preview");
+  if (img) { img.src = ""; img.style.display = "none"; }
 }
 
 </script>
