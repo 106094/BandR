@@ -815,7 +815,7 @@ function endDraw(){
 }
 
 
-async function snapshotAndOCR(){async function snapshotAndOCR(){
+async function snapshotAndOCR(){
   const sx = Math.min(startX, endX);
   const sy = Math.min(startY, endY);
   const sw = Math.abs(endX - startX);
@@ -882,6 +882,7 @@ function closeScanner(){
   clearTimeout(scanTimer);
   scanTimer = null;
 }
+                                
 function maybeHidePreview(input){
   if (input.value.trim() !== "") return;
   const img = input.closest(".field")?.querySelector(".ocr-preview");
