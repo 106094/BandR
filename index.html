@@ -529,12 +529,30 @@ function parseCsvToEmails(csvText) {
 }
 
 function showApp(user) {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  if (user) document.getElementById('userName').textContent = user.name || user.email;
-  // Ensure language is applied when app shows (in case of cached user)
+  // Hide login screen only if it exists
+  const login = document.getElementById('loginScreen');
+  if (login) {
+    login.style.display = 'none';
+  }
+
+  // Show main app if it exists
+  const app = document.getElementById('app');
+  if (app) {
+    app.style.display = 'block';
+  }
+
+  // Set the visible username if we have a user
+  if (user) {
+    const userNameEl = document.getElementById('userName');
+    if (userNameEl) {
+      userNameEl.textContent = user.name || user.email;
+    }
+  }
+
+  // Apply translations after UI is visible
   applyLanguage();
 }
+
 
 function showBlocked() {
   document.getElementById('loginScreen').style.display = 'none';
