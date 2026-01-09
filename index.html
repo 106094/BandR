@@ -91,7 +91,7 @@
 </head>
 <body>
 
-<div id="app" style="display:none;">
+<div id="app">
   <div class="shell">
     <script type="module">
       import { BrowserMultiFormatReader, BrowserCodeReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
@@ -798,16 +798,6 @@ function endDraw(){
   snapshotAndOCR();
 }
 
-window.addEventListener('load', () => {
-  const overlay = getOverlay();
-  if (!overlay) return;
-  overlay.addEventListener("mousedown", startDraw);
-  overlay.addEventListener("mousemove", moveDraw);
-  overlay.addEventListener("mouseup", endDraw);
-  overlay.addEventListener("touchstart", startDraw, {passive:false});
-  overlay.addEventListener("touchmove", moveDraw, {passive:false});
-  overlay.addEventListener("touchend", endDraw);
-});
 
 async function snapshotAndOCR(){
   const overlay = document.getElementById('overlay');
