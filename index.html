@@ -548,17 +548,8 @@ function logout() {
 }
 
 window.addEventListener('load', () => {
-  const saved = localStorage.getItem('inventoryAppUser');
-  if (saved) {
-    const user = JSON.parse(saved);
-    showApp(user);
-    return;
-  }
-  google.accounts.id.initialize({ client_id: CLIENT_ID, callback: handleCredentialResponse, auto_select: false });
-  google.accounts.id.renderButton( document.querySelector('.g_id_signin'), { theme: "outline", size: "large" } );
-  
-  // Initial Lang Apply
-  applyLanguage();
+  // Always skip login
+ showApp({ name: "DevUser" });
 });
 
 async function handleCredentialResponse(response) {
