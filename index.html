@@ -538,6 +538,14 @@ async function openScanner(targetId=null, directInputEl=null) {
   const camBox  = document.getElementById('camBox');
   const ctx     = overlay.getContext('2d');
 
+  overlay.addEventListener("mousedown", startDraw);
+　overlay.addEventListener("mousemove", moveDraw);
+  overlay.addEventListener("mouseup", endDraw);
+  
+  overlay.addEventListener("touchstart", startDraw, { passive:false });
+  overlay.addEventListener("touchmove", moveDraw, { passive:false });
+  overlay.addEventListener("touchend", endDraw);
+    
   // ✅ QR/Bar: disable drawing + reset hint
   overlay.style.pointerEvents = "none";
   document.getElementById('scanHint').textContent = t('scanHint');
@@ -649,20 +657,6 @@ function logout() {
   localStorage.removeItem('inventoryAppUser');
   location.reload();
 }
-
-(function bindOverlayEvents(){
-  const overlay = document.getElementById('overlay');
-  if (!overlay) return;
-
-  overlay.addEventListener("mousedown", startDraw);
-  overlay.addEventListener("mousemove", moveDraw);
-  overlay.addEventListener("mouseup", endDraw);
-
-  overlay.addEventListener("touchstart", startDraw, {passive:false});
-  overlay.addEventListener("touchmove", moveDraw, {passive:false});
-  overlay.addEventListener("touchend", endDraw);
-})();
-
 
 async function handleCredentialResponse(response) {
   const payload = JSON.parse(atob(response.credential.split('.')[1]));
