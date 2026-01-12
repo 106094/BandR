@@ -535,9 +535,11 @@ async function openScanner(targetId=null, directInputEl=null) {
   // ✅ set target FIRST
   currentInputEl = directInputEl || (targetId ? document.getElementById(targetId) : null);
 
-  // ✅ then clear preview for THIS target (QR/Bar should not show OCR image)
-  if (currentInputEl) maybeHidePreview(currentInputEl);
-
+  // ✅ QR/Bar mode should NOT show OCR image
+  if (currentInputEl) {
+    maybeHidePreview(currentInputEl);          // hides <img class="ocr-preview">
+    delete currentInputEl.dataset.ocrPreview;  // optional: clear stored dataUrl
+  }
   document.getElementById('scannerModal').style.display = 'flex';
 
   const video   = document.getElementById('video');
@@ -570,6 +572,8 @@ async function openScanner(targetId=null, directInputEl=null) {
       const text = result.getText();
 
       if (currentInputEl) {
+        maybeHidePreview(currentInputEl);
+        delete currentInputEl.dataset.ocrPreview;
         currentInputEl.value = text;
         currentInputEl.dispatchEvent(new Event('input', { bubbles:true }));
       }
@@ -854,8 +858,7 @@ function showOCRPreviewForTarget(inputEl, dataUrl){
 }
 
 function maybeHidePreview(input){
-  if (input.value.trim() !== "") return;
-  const img = input.closest(".field")?.querySelector(".ocr-preview");
+  const img = input?.closest(".field")?.querySelector(".ocr-preview");
   if (img) { img.src = ""; img.style.display = "none"; }
 }
 
