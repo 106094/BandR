@@ -520,23 +520,27 @@ async function openScanner(targetId=null, directInputEl=null) {
   stopScanner();
   ocrMode = false;
 
-  codeReader = new BrowserMultiFormatReader(hints);
-
   // ✅ set target FIRST
   currentInputEl = directInputEl || (targetId ? document.getElementById(targetId) : null);
-  document.querySelectorAll('.ocr-preview').forEach(img => { img.src=""; img.style.display="none"; });
 
-  // ✅ QR/Bar mode should NOT show OCR image
+  // ✅ QR/Bar mode should NOT show OCR image (only clear for THIS target)
   if (currentInputEl) {
-    maybeHidePreview(currentInputEl);          // hides <img class="ocr-preview">
-    delete currentInputEl.dataset.ocrPreview;  // optional: clear stored dataUrl
+    maybeHidePreview(currentInputEl);
+    delete currentInputEl.dataset.ocrPreview;
   }
+
   document.getElementById('scannerModal').style.display = 'flex';
 
   const video   = document.getElementById('video');
   const overlay = document.getElementById('overlay');
   const camBox  = document.getElementById('camBox');
   const ctx     = overlay.getContext('2d');
+
+  // ✅ QR/Bar: disable drawing + reset hint
+  overlay.style.pointerEvents = "none";
+  document.getElementById('scanHint').textContent = t('scanHint');
+
+  codeReader = new BrowserMultiFormatReader(hints);
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -554,20 +558,27 @@ async function openScanner(targetId=null, directInputEl=null) {
 
     camBox.style.height = (camBox.clientWidth / ratio) + "px";
 
+    // ✅ resize canvas (this clears it)
     overlay.width  = W;
     overlay.height = H;
+
+    // ✅ make sure nothing from OCR is drawn
     ctx.clearRect(0,0,overlay.width,overlay.height);
 
     const cb = (result) => {
       if (!result) return;
+
       const text = result.getText();
 
       if (currentInputEl) {
+        // keep it clean: QR/Bar always hides OCR preview
         maybeHidePreview(currentInputEl);
         delete currentInputEl.dataset.ocrPreview;
+
         currentInputEl.value = text;
         currentInputEl.dispatchEvent(new Event('input', { bubbles:true }));
       }
+
       currentInputEl = null;
       closeScanner();
       toast(t('toastScanned'));
@@ -689,56 +700,50 @@ async function openOCR(targetId=null, directInputEl=null){
   currentInputEl = directInputEl || (targetId ? document.getElementById(targetId) : null);
   if (!currentInputEl) { toast('No target input'); return; }
 
-  // show modal
-  document.getElementById('scannerModal').style.display='flex';
+  document.getElementById('scannerModal').style.display = 'flex';
 
-  // stop QR scanner if it was running
   stopScanner();
   ocrMode = true;
 
-  const video  = document.getElementById('video');
+  const video   = document.getElementById('video');
   const overlay = document.getElementById('overlay');
-  const camBox = document.getElementById('camBox');
+  const camBox  = document.getElementById('camBox');
+  const ctx     = overlay.getContext('2d');
 
-  try{
-    // start camera (global stream)
+  // ✅ OCR needs drawing enabled
+  overlay.style.pointerEvents = "auto";
+
+  try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
     });
 
     video.srcObject = stream;
 
-    // wait metadata
-    await new Promise(resolve => {
-      video.onloadedmetadata = () => resolve();
-    });
-
+    await new Promise(resolve => { video.onloadedmetadata = () => resolve(); });
     await video.play().catch(()=>{});
 
     const W = video.videoWidth || 1280;
     const H = video.videoHeight || 720;
     const ratio = W / H;
 
-    // constrain camera box height based on actual ratio (same as your original)
-    const boxWidth = camBox.clientWidth; // already constrained by modal width
-    camBox.style.height = (boxWidth / ratio) + "px";
+    camBox.style.height = (camBox.clientWidth / ratio) + "px";
 
-    // canvas 1:1 with real video pixels
-    overlay.width = W;
+    overlay.width  = W;
     overlay.height = H;
 
-    // init mask
+    // ✅ init OCR mask + hint
     document.getElementById('scanHint').textContent = 'Draw a rectangle to OCR';
-    const ctx = overlay.getContext('2d');
     ctx.clearRect(0,0,overlay.width,overlay.height);
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0,0,overlay.width,overlay.height);
 
-  }catch(e){
+  } catch (e) {
     toast(`${t('toastCameraErr')} ${e.name || e.message || 'Error'}`);
   }
 }
 window.openOCR = openOCR;
+
 
 function getOverlay() {
   return document.getElementById('overlay');
