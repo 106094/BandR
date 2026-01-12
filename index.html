@@ -243,6 +243,7 @@ const i18n = {
         btnBack: "Back",
         btnConfirm: "Confirm / Submit",
         scanHint: "Point camera at a code...",
+        scanHintocr: "Draw a rectangle to OCR",
         btnTorch: "Torch",
         btnClose: "Close",
         toastKeepOne: "Keep at least one line",
@@ -289,6 +290,7 @@ const i18n = {
         btnBack: "返回",
         btnConfirm: "確認 / 送出",
         scanHint: "將鏡頭對準條碼...",
+        scanHintocr: "畫出方形OCR辨識區域",
         btnTorch: "手電筒",
         btnClose: "關閉",
         toastKeepOne: "請保留至少一行",
@@ -733,7 +735,7 @@ async function openOCR(targetId=null, directInputEl=null){
     overlay.height = H;
 
     // ✅ init OCR mask + hint
-    document.getElementById('scanHint').textContent = 'Draw a rectangle to OCR';
+    document.getElementById('scanHint').textContent = t('scanHintocr');;
     ctx.clearRect(0,0,overlay.width,overlay.height);
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.fillRect(0,0,overlay.width,overlay.height);
@@ -776,7 +778,7 @@ function startOCRMode() {
   const ctx = getCtx();
   if (!overlay || !ctx) { toast("Overlay not ready"); return; }
 
-  document.getElementById('scanHint').textContent = 'Draw a rectangle to OCR';
+  document.getElementById('scanHint').textContent = t('scanHintocr');;
 
   fitOverlayToVideo();
   ctx.clearRect(0,0,overlay.width,overlay.height);
